@@ -195,5 +195,5 @@ postscreen_dnsbl_sites = wl.mailspike.net=127.0.0.[18;19;20]*-2
 
 
 # User Overrides
-myhostname = mail.abdalamail.com.br
+myhostname = srv01.abdalamail.com
 
