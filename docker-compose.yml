@@ -253,6 +253,8 @@ services:
 
     dovecot-mailcow:
       image: ghcr.io/mailcow/dovecot:2.3.21.1-2
+      build:
+        context: ./data/Dockerfiles/dovecot
       depends_on:
         - mysql-mailcow
         - netfilter-mailcow

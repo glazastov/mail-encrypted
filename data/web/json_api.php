@@ -1927,6 +1927,9 @@ if (isset($_GET['query'])) {
         case "delimiter_action":
           process_edit_return(mailbox('edit', 'delimiter_action', array_merge(array('username' => $items), $attr)));
         break;
+        case "pgp-storage":
+          process_edit_return(mailbox('edit', 'pgp_storage', array_merge(array('username' => $items), $attr)));
+        break;
         case "tls_policy":
           process_edit_return(mailbox('edit', 'tls_policy', array_merge(array('username' => $items), $attr)));
         break;
