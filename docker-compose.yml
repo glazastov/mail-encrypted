@@ -301,6 +301,8 @@ services:
         - REDIS_SLAVEOF_PORT=${REDIS_SLAVEOF_PORT:-}
         - REDISPASS=${REDISPASS}
         - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-mailcow-dockerized}
+        - PGP_STORAGE_DEBUG=${PGP_STORAGE_DEBUG:-1}
+        - PGP_STORAGE_DEBUG_LOG=${PGP_STORAGE_DEBUG_LOG:-/var/log/mailcow-pgp-storage-debug.log}
       ports:
         - "${DOVEADM_PORT:-127.0.0.1:19991}:12345"
         - "${IMAP_PORT:-143}:143"
