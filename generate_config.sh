@@ -345,6 +345,12 @@ FTS_HEAP=128
 # Please visit: https://doc.dovecot.org/configuration_manual/service_configuration/#indexer-worker for more information
 FTS_PROCS=1
 
+# Enable PGP storage encryption debug logging
+PGP_STORAGE_DEBUG=1
+
+# PGP storage encryption debug log file path
+PGP_STORAGE_DEBUG_LOG=/var/log/mailcow-pgp-storage-debug.log
+
 # Allow admins to log into SOGo as email user (without any password)
 ALLOW_ADMIN_EMAIL_LOGIN=n
 
