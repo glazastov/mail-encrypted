@@ -265,6 +265,9 @@ fi
 mkdir -p /etc/dovecot/sieve-pipe-bin
 ln -sf /usr/lib/dovecot/sieve/rspamd-pipe-ham /etc/dovecot/sieve-pipe-bin/rspamd-pipe-ham
 ln -sf /usr/lib/dovecot/sieve/rspamd-pipe-spam /etc/dovecot/sieve-pipe-bin/rspamd-pipe-spam
+mkdir -p /var/log
+touch /var/log/mailcow-pgp-storage-debug.log
+chown vmail:vmail /var/log/mailcow-pgp-storage-debug.log
 sievec /var/vmail/sieve/global_sieve_before.sieve
 sievec /var/vmail/sieve/global_sieve_after.sieve
 sievec /etc/dovecot/mailcow-pgp-storage.sieve

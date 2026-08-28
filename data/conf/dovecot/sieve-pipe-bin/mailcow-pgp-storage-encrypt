@@ -8,38 +8,86 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import datetime
 from email.message import EmailMessage
 from email.policy import SMTP
+
+DEFAULT_DEBUG_LOG = "/var/log/mailcow-pgp-storage-debug.log"
+MAX_LOG_SIZE = 1048576  # 1MB
+LOG_BACKUP_COUNT = 5
+
+def get_debug_config():
+    debug_enabled = os.environ.get("PGP_STORAGE_DEBUG", "1") not in ("0", "no", "false", "no", "")
+    debug_log = os.environ.get("PGP_STORAGE_DEBUG_LOG", DEFAULT_DEBUG_LOG)
+    return debug_enabled, debug_log
+
+def rotate_log(log_path):
+    try:
+        if not os.path.exists(log_path):
+            return
+        if os.path.getsize(log_path) > MAX_LOG_SIZE:
+            for i in range(LOG_BACKUP_COUNT - 1, 0, -1):
+                src = log_path + ".{}".format(i)
+                dst = log_path + ".{}".format(i + 1)
+                if os.path.exists(src):
+                    shutil.move(src, dst)
+            shutil.move(log_path, log_path + ".1")
+    except Exception:
+        pass
+
+def log_debug(msg):
+    debug_enabled, debug_log = get_debug_config()
+    if not debug_enabled:
+        return
+    try:
+        rotate_log(debug_log)
+        with open(debug_log, "a") as f:
+            timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            f.write("{} {}\n".format(timestamp, msg))
+    except Exception:
+        pass
 
 def emit(data):
     sys.stdout.buffer.write(data)
 
+def get_argv_recipients():
+    recipients = []
+    for arg in sys.argv[1:]:
+        match = re.search(r"[\w.!#$%&'*+/=?^_`{|}~-]+@[\w.-]+", arg)
+        if match:
+            recipients.append(match.group(0).lower())
+    return recipients
 
 def candidates_from_env():
+    env_recipients = []
     for name in ("USER", "USERNAME", "RECIPIENT", "ORIG_RECIPIENT", "SIEVE_USER", "DELIVERED_TO"):
-        match = re.search(r"[\w.!#$%&'*+/=?^_`{|}~-]+@[\w.-]+", os.environ.get(name, ""))
+        value = os.environ.get(name, "")
+        match = re.search(r"[\w.!#$%&'*+/=?^_`{|}~-]+@[\w.-]+", value)
         if match:
-            yield match.group(0).lower()
-
+            env_recipients.append(match.group(0).lower())
+    return env_recipients
 
 def candidates_from_headers(message):
-    for name in ("X-Original-To", "Delivered-To", "Envelope-To", "To"):
+    header_recipients = []
+    for name in ("X-Original-To", "Delivered-To", "Envelope-To", "To", "From"):
         for value in message.get_all(name, []):
             for _, addr in email.utils.getaddresses([value]):
                 if addr and "@" in addr:
-                    yield addr.lower()
-
+                    header_recipients.append(addr.lower())
+    return header_recipients
 
 def load_public_key(candidates):
     try:
         import MySQLdb
     except ImportError:
+        log_debug("load_public_key: MySQLdb not available")
         return None
 
     dbname = os.environ.get("DBNAME")
     dbuser = os.environ.get("DBUSER")
     dbpass = os.environ.get("DBPASS")
     if not dbname or not dbuser or not dbpass:
+        log_debug("load_public_key: DB env vars missing")
         return None
 
     seen = []
@@ -47,8 +95,10 @@ def load_public_key(candidates):
         if candidate not in seen:
             seen.append(candidate)
     if not seen:
+        log_debug("load_public_key: no candidates")
         return None
 
+    log_debug("load_public_key: trying candidates: " + ", ".join(seen))
     try:
         conn = MySQLdb.connect(
             unix_socket="/var/run/mysqld/mysqld.sock",
@@ -57,7 +107,8 @@ def load_public_key(candidates):
             db=dbname,
             charset="utf8mb4",
         )
-    except MySQLdb.Error:
+    except MySQLdb.Error as e:
+        log_debug("load_public_key: MySQL connection error: " + str(e))
         return None
     try:
         cur = conn.cursor(MySQLdb.cursors.DictCursor)
@@ -68,14 +119,21 @@ def load_public_key(candidates):
             )
             row = cur.fetchone()
             if not row:
+                log_debug("load_public_key: no row for " + candidate)
                 continue
             attrs = json.loads(row.get("attributes") or "{}")
-            if str(attrs.get("pgp_storage_encrypt", "0")) == "1" and attrs.get("pgp_public_key"):
-                return attrs["pgp_public_key"]
+            pgp_encrypt = str(attrs.get("pgp_storage_encrypt", "0"))
+            pgp_key = attrs.get("pgp_public_key")
+            log_debug("load_public_key: " + candidate + " pgp_storage_encrypt=" + pgp_encrypt + " has_key=" + str(bool(pgp_key)))
+            if pgp_encrypt == "1" and pgp_key:
+                log_debug("load_public_key: found key for " + candidate + " key_len=" + str(len(pgp_key)))
+                return pgp_key
+    except Exception as e:
+        log_debug("load_public_key: error: " + str(e))
     finally:
         conn.close()
+    log_debug("load_public_key: no matching key found")
     return None
-
 
 def import_key(gnupghome, public_key):
     try:
@@ -88,6 +146,7 @@ def import_key(gnupghome, public_key):
     except FileNotFoundError:
         return None
     if proc.returncode != 0:
+        log_debug("import_key: gpg import failed with code " + str(proc.returncode))
         return None
 
     try:
@@ -107,13 +166,13 @@ def import_key(gnupghome, public_key):
             return fields[9]
     return None
 
-
 def encrypt(original, public_key):
     gnupghome = tempfile.mkdtemp(prefix="mailcow-pgp-")
     try:
         os.chmod(gnupghome, 0o700)
         fingerprint = import_key(gnupghome, public_key)
         if not fingerprint:
+            log_debug("encrypt: could not get fingerprint")
             return None
         try:
             proc = subprocess.run(
@@ -136,10 +195,12 @@ def encrypt(original, public_key):
             )
         except FileNotFoundError:
             return None
-        return proc.stdout if proc.returncode == 0 else None
+        if proc.returncode != 0:
+            log_debug("encrypt: gpg failed with code " + str(proc.returncode))
+            return None
+        return proc.stdout
     finally:
         shutil.rmtree(gnupghome, ignore_errors=True)
-
 
 def pgp_mime(original, encrypted):
     source = email.message_from_bytes(original, policy=SMTP)
@@ -164,10 +225,10 @@ def pgp_mime(original, encrypted):
     outer.attach(payload)
     return outer.as_bytes()
 
-
 def main():
     original = sys.stdin.buffer.read()
     parsed = email.message_from_bytes(original, policy=SMTP)
+
     if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
         emit(original)
         return
@@ -178,16 +239,34 @@ def main():
         emit(original)
         return
 
+    argv_recipients = get_argv_recipients()
+    env_recipients = candidates_from_env()
+    header_recipients = candidates_from_headers(parsed)
+
+    all_candidates = argv_recipients + env_recipients + header_recipients
+
+    log_debug("=== PGP Storage Filter ===")
+    log_debug("argv recipients: " + ", ".join(argv_recipients) if argv_recipients else "argv recipients: none")
+    log_debug("env recipients: " + ", ".join(env_recipients) if env_recipients else "env recipients: none")
+    log_debug("header recipients: " + ", ".join(header_recipients) if header_recipients else "header recipients: none")
+    log_debug("all candidates: " + ", ".join(all_candidates) if all_candidates else "all candidates: none")
+
     try:
-        public_key = load_public_key(list(candidates_from_env()) + list(candidates_from_headers(parsed)))
+        public_key = load_public_key(all_candidates)
         if not public_key:
+            log_debug("No public key found for any candidate")
             emit(original)
             return
         encrypted = encrypt(original, public_key)
-        emit(pgp_mime(original, encrypted) if encrypted else original)
-    except Exception:
+        if encrypted:
+            emit(pgp_mime(original, encrypted))
+            log_debug("Encryption successful for key_len=" + str(len(public_key)))
+        else:
+            log_debug("Encryption returned None, emitting original")
+            emit(original)
+    except Exception as e:
+        log_debug("Exception: " + str(e))
         emit(original)
-
 
 if __name__ == "__main__":
     main()

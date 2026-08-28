@@ -1,3 +1,3 @@
 require ["vnd.dovecot.filter"];
 
-filter "mailcow-pgp-storage-encrypt";
+filter "mailcow-pgp-storage-encrypt" "%u";
