@@ -35,6 +35,21 @@
           <p class="text-muted">{{ lang.user.tag_help_example|raw }}</p>
         </div>
       </div>
+      <hr>
+      <form data-id="pgp_storage">
+        <div class="row">
+          <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">PGP storage encryption:</div>
+          <div class="col-sm-9 col-12">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}>
+              <label class="form-check-label" for="pgp_storage_encrypt">Encrypt stored messages with my public key</label>
+            </div>
+            <textarea class="form-control" rows="8" name="pgp_public_key" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
+            <p class="text-muted">Incoming LMTP deliveries and IMAP appends are stored as PGP/MIME when this is enabled. Keep your private key safe; mailcow only stores the public key.</p>
+            <button type="button" class="btn btn-sm btn-success" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
+          </div>
+        </div>
+      </form>
       {# Show TLS policy options #}
       <div class="row">
         <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">{{ lang.user.tls_policy }}:</div>

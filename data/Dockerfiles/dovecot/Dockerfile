@@ -38,6 +38,7 @@ RUN addgroup -g 5000 vmail \
   mariadb-dev \
   glib-dev \
   gcompat \
+  gnupg \
   mariadb-client \
   perl \
   perl-dev \

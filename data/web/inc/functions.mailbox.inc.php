@@ -2268,6 +2268,52 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             );
           }
         break;
+        case 'pgp_storage':
+          if (!is_array($_data['username'])) {
+            $usernames = array();
+            $usernames[] = $_data['username'];
+          }
+          else {
+            $usernames = $_data['username'];
+          }
+          foreach ($usernames as $username) {
+            if (!filter_var($username, FILTER_VALIDATE_EMAIL) || !hasMailboxObjectAccess($_SESSION['mailcow_cc_username'], $_SESSION['mailcow_cc_role'], $username)) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                'msg' => 'access_denied'
+              );
+              continue;
+            }
+            $pgp_public_key = trim((string)($_data['pgp_public_key'] ?? ''));
+            $pgp_storage_encrypt = !empty($_data['pgp_storage_encrypt']) ? 1 : 0;
+            if ($pgp_storage_encrypt && !preg_match('/-----BEGIN PGP PUBLIC KEY BLOCK-----[\s\S]+-----END PGP PUBLIC KEY BLOCK-----/', $pgp_public_key)) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                'msg' => 'Invalid PGP public key'
+              );
+              continue;
+            }
+            if (!$pgp_storage_encrypt && empty($pgp_public_key)) {
+              $pgp_public_key = '';
+            }
+            $stmt = $pdo->prepare("UPDATE `mailbox`
+              SET `attributes` = JSON_SET(`attributes`, '$.pgp_storage_encrypt', :pgp_storage_encrypt),
+                  `attributes` = JSON_SET(`attributes`, '$.pgp_public_key', :pgp_public_key)
+                WHERE `username` = :username");
+            $stmt->execute(array(
+              ':pgp_storage_encrypt' => $pgp_storage_encrypt,
+              ':pgp_public_key' => $pgp_public_key,
+              ':username' => $username
+            ));
+            $_SESSION['return'][] = array(
+              'type' => 'success',
+              'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+              'msg' => array('mailbox_modified', $username)
+            );
+          }
+        break;
         case 'syncjob':
           if (!is_array($_data['id'])) {
             $ids = array();

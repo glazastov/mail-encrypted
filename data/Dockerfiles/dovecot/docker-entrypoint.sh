@@ -262,8 +262,12 @@ if grep -qE 'ssl_min_protocol\s*=\s*(TLSv1|TLSv1\.1)\s*$' /etc/dovecot/dovecot.c
 fi
 
 # Compile sieve scripts
+mkdir -p /etc/dovecot/sieve-pipe-bin
+ln -sf /usr/lib/dovecot/sieve/rspamd-pipe-ham /etc/dovecot/sieve-pipe-bin/rspamd-pipe-ham
+ln -sf /usr/lib/dovecot/sieve/rspamd-pipe-spam /etc/dovecot/sieve-pipe-bin/rspamd-pipe-spam
 sievec /var/vmail/sieve/global_sieve_before.sieve
 sievec /var/vmail/sieve/global_sieve_after.sieve
+sievec /etc/dovecot/mailcow-pgp-storage.sieve
 sievec /usr/lib/dovecot/sieve/report-spam.sieve
 sievec /usr/lib/dovecot/sieve/report-ham.sieve
 
@@ -279,6 +283,7 @@ chmod g+rw /dev/console
 chown root:tty /dev/console
 chmod +x /usr/lib/dovecot/sieve/rspamd-pipe-ham \
   /usr/lib/dovecot/sieve/rspamd-pipe-spam \
+  /etc/dovecot/sieve-pipe-bin/mailcow-pgp-storage-encrypt \
   /usr/local/bin/imapsync_runner.pl \
   /usr/local/bin/imapsync \
   /usr/local/bin/trim_logs.sh \
