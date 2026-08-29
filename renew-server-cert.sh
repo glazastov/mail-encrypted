@@ -193,7 +193,7 @@ if [[ "${OLD_CERT_HASH}" != "${NEW_CERT_HASH}" ]]; then
 			</dev/null \
 			>"${SMTP_TMP}" 2>&1; then
 
-			if grep -q '-----BEGIN CERTIFICATE-----' "${SMTP_TMP}"; then
+			if grep -q -- '-----BEGIN CERTIFICATE-----' "${SMTP_TMP}"; then
 				SMTP_READY=1
 				break
 			fi

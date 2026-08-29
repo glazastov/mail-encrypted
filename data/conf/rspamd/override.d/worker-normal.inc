@@ -1,4 +1,4 @@
 bind_socket = "*:11333";
-task_timeout = 25s;
+task_timeout = 90s;
 count = 1;
 .include(try=true; priority=30) "$CONFDIR/override.d/worker-normal.custom.inc"
