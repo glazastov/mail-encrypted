@@ -113,19 +113,20 @@ def load_public_key(candidates):
     # invoked some other way.
     env_key = os.environ.get("PGP_PUBLIC_KEY", "").strip()
     if env_key:
+        hide = os.environ.get("PGP_ENCRYPT_SUBJECT", "0") == "1"
         log_debug("load_public_key: using key from environment, key_len=" + str(len(env_key)))
-        return env_key
+        return env_key, hide
 
     try:
         import MySQLdb
     except ImportError:
         log_debug("load_public_key: MySQLdb not available")
-        return None
+        return None, False
 
     dbname, dbuser, dbpass = db_credentials()
     if not dbname or not dbuser or not dbpass:
         log_debug("load_public_key: no DB credentials from env or mailcow SQL config")
-        return None
+        return None, False
 
     seen = []
     for candidate in candidates:
@@ -133,7 +134,7 @@ def load_public_key(candidates):
             seen.append(candidate)
     if not seen:
         log_debug("load_public_key: no candidates")
-        return None
+        return None, False
 
     log_debug("load_public_key: trying candidates: " + ", ".join(seen))
     try:
@@ -146,7 +147,7 @@ def load_public_key(candidates):
         )
     except MySQLdb.Error as e:
         log_debug("load_public_key: MySQL connection error: " + str(e))
-        return None
+        return None, False
     try:
         cur = conn.cursor(MySQLdb.cursors.DictCursor)
         for candidate in seen:
@@ -163,14 +164,17 @@ def load_public_key(candidates):
             pgp_key = attrs.get("pgp_public_key")
             log_debug("load_public_key: " + candidate + " pgp_storage_encrypt=" + pgp_encrypt + " has_key=" + str(bool(pgp_key)))
             if pgp_encrypt == "1" and pgp_key:
-                log_debug("load_public_key: found key for " + candidate + " key_len=" + str(len(pgp_key)))
-                return pgp_key
+                hide = str(attrs.get("pgp_encrypt_subject", "0")) == "1"
+                log_debug("load_public_key: found key for " + candidate +
+                          " key_len=" + str(len(pgp_key)) +
+                          " encrypt_subject=" + str(hide))
+                return pgp_key, hide
     except Exception as e:
         log_debug("load_public_key: error: " + str(e))
     finally:
         conn.close()
     log_debug("load_public_key: no matching key found")
-    return None
+    return None, False
 
 def normalize_armor(public_key):
     """Make a pasted armored key acceptable to gpg.
@@ -263,12 +267,20 @@ def encrypt(original, public_key):
     finally:
         shutil.rmtree(gnupghome, ignore_errors=True)
 
-def pgp_mime(original, encrypted):
+HIDDEN_SUBJECT = "[Encrypted message]"
+
+def pgp_mime(original, encrypted, hide_subject=False):
     source = email.message_from_bytes(original, policy=SMTP)
     outer = EmailMessage(policy=SMTP)
-    for name in ("From", "To", "Cc", "Date", "Subject", "Message-ID"):
+    # The real subject travels inside the encrypted payload either way; this
+    # only decides whether a copy also stays readable on the outside.
+    headers = ("From", "To", "Cc", "Date", "Message-ID") if hide_subject else \
+              ("From", "To", "Cc", "Date", "Subject", "Message-ID")
+    for name in headers:
         if source.get(name):
             outer[name] = source[name]
+    if hide_subject:
+        outer["Subject"] = HIDDEN_SUBJECT
     outer["X-Mailcow-PGP-Storage"] = "encrypted"
     outer.set_type("multipart/encrypted")
     outer.set_param("protocol", "application/pgp-encrypted")
@@ -313,14 +325,14 @@ def main():
     log_debug("all candidates: " + ", ".join(all_candidates) if all_candidates else "all candidates: none")
 
     try:
-        public_key = load_public_key(all_candidates)
+        public_key, hide_subject = load_public_key(all_candidates)
         if not public_key:
             log_debug("No public key found for any candidate")
             emit(original)
             return
         encrypted = encrypt(original, public_key)
         if encrypted:
-            emit(pgp_mime(original, encrypted))
+            emit(pgp_mime(original, encrypted, hide_subject))
             log_debug("Encryption successful for key_len=" + str(len(public_key)))
         else:
             log_debug("Encryption returned None, emitting original")

@@ -51,6 +51,18 @@
               <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"><i class="bi bi-x-lg"></i> Clear</button>
               <span id="pgp_key_filename" class="text-muted small ms-2"></span>
             </div>
+            <div class="border-start ps-3 mt-3 mb-2" id="pgp_suboptions">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="pgp_encrypt_subject" name="pgp_encrypt_subject" value="1"{% if mailboxdata.attributes.pgp_encrypt_subject == '1' or mailboxdata.attributes.pgp_encrypt_subject == 1 %} checked{% endif %}>
+                <label class="form-check-label" for="pgp_encrypt_subject">Encrypt the subject as well</label>
+                <div class="text-muted small">The stored subject becomes "[Encrypted message]"; the real one travels inside the encrypted body. Server-side search by subject stops working for this mailbox, and clients that cannot decrypt show the placeholder in the message list.</div>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="pgp_skip_spam" name="pgp_skip_spam" value="1"{% if mailboxdata.attributes.pgp_skip_spam == '1' or mailboxdata.attributes.pgp_skip_spam == 1 %} checked{% endif %}>
+                <label class="form-check-label" for="pgp_skip_spam">Skip spam filtering for this mailbox</label>
+                <div class="text-muted small">Scanning happens before delivery, so the spam filter - and the quarantine, which keeps a full copy in the database - sees the message in cleartext. Turning this on closes that gap, at the cost of receiving unfiltered spam and losing quarantine review.</div>
+              </div>
+            </div>
             <p class="text-muted">Incoming LMTP deliveries and IMAP appends are stored as PGP/MIME when this is enabled. Keep your private key safe; mailcow only stores the public key.</p>
             <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
           </div>
@@ -144,6 +156,17 @@
           feedback.textContent = result.msg;
           return result;
         }
+
+        var subOptions = document.getElementById('pgp_suboptions');
+        function syncSubOptions() {
+          var on = toggle.checked;
+          subOptions.classList.toggle('opacity-50', !on);
+          subOptions.querySelectorAll('input').forEach(function (input) {
+            input.disabled = !on;
+          });
+        }
+        toggle.addEventListener('change', syncSubOptions);
+        syncSubOptions();
 
         ta.addEventListener('input', render);
         ta.addEventListener('blur', render);

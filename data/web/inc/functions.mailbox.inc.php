@@ -2410,13 +2410,21 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               );
               continue;
             }
+            // Both only mean anything while storage encryption is on, so they
+            // are forced off with it rather than left dangling in the DB.
+            $pgp_encrypt_subject = ($pgp_storage_encrypt && !empty($_data['pgp_encrypt_subject'])) ? 1 : 0;
+            $pgp_skip_spam = ($pgp_storage_encrypt && !empty($_data['pgp_skip_spam'])) ? 1 : 0;
             $stmt = $pdo->prepare("UPDATE `mailbox`
               SET `attributes` = JSON_SET(`attributes`, '$.pgp_storage_encrypt', :pgp_storage_encrypt),
-                  `attributes` = JSON_SET(`attributes`, '$.pgp_public_key', :pgp_public_key)
+                  `attributes` = JSON_SET(`attributes`, '$.pgp_public_key', :pgp_public_key),
+                  `attributes` = JSON_SET(`attributes`, '$.pgp_encrypt_subject', :pgp_encrypt_subject),
+                  `attributes` = JSON_SET(`attributes`, '$.pgp_skip_spam', :pgp_skip_spam)
                 WHERE `username` = :username");
             $stmt->execute(array(
               ':pgp_storage_encrypt' => $pgp_storage_encrypt,
               ':pgp_public_key' => $pgp_public_key,
+              ':pgp_encrypt_subject' => $pgp_encrypt_subject,
+              ':pgp_skip_spam' => $pgp_skip_spam,
               ':username' => $username
             ));
             $_SESSION['return'][] = array(

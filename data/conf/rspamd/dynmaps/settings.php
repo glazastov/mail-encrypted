@@ -27,7 +27,7 @@ catch (PDOException $e) {
 
 // Check if db changed and return header
 $stmt = $pdo->prepare("SELECT GREATEST(COALESCE(MAX(UNIX_TIMESTAMP(UPDATE_TIME)), 1), COALESCE(MAX(UNIX_TIMESTAMP(CREATE_TIME)), 1)) AS `db_update_time` FROM `information_schema`.`tables`
-  WHERE (`TABLE_NAME` = 'filterconf' OR `TABLE_NAME` = 'settingsmap' OR `TABLE_NAME` = 'sogo_quick_contact' OR `TABLE_NAME` = 'alias')
+  WHERE (`TABLE_NAME` = 'filterconf' OR `TABLE_NAME` = 'settingsmap' OR `TABLE_NAME` = 'sogo_quick_contact' OR `TABLE_NAME` = 'alias' OR `TABLE_NAME` = 'mailbox')
     AND TABLE_SCHEMA = :dbname;");
 $stmt->execute(array(
   ':dbname' => $database_name
@@ -164,6 +164,39 @@ settings {
 
     }
   }
+<?php
+
+/*
+// Skip spam filtering for mailboxes that asked for it alongside PGP storage
+// encryption. Scanning means rspamd - and the quarantine table - see the
+// message in cleartext, which is exactly what those users are avoiding.
+*/
+
+$stmt = $pdo->query("SELECT `username` FROM `mailbox`
+  WHERE JSON_VALUE(`attributes`, '$.pgp_storage_encrypt') = '1'
+    AND JSON_VALUE(`attributes`, '$.pgp_skip_spam') = '1'
+    AND `active` IN ('1', '2')");
+$pgp_nospam = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+while ($row = array_shift($pgp_nospam)) {
+  $username_sane = preg_replace("/[^a-zA-Z0-9]+/", "", $row['username']);
+?>
+  pgp_nospam_<?=$username_sane;?> {
+    priority = 9;
+<?php
+  foreach (ucl_rcpts($row['username'], 'mailbox') as $rcpt) {
+?>
+    rcpt = <?=json_encode($rcpt, JSON_UNESCAPED_SLASHES);?>;
+<?php
+  }
+?>
+    apply "default" {
+      want_spam = yes;
+    }
+  }
+<?php
+}
+?>
 <?php
 
 /*
