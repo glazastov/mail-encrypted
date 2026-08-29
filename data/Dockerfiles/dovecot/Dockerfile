@@ -39,6 +39,7 @@ RUN addgroup -g 5000 vmail \
   glib-dev \
   gcompat \
   gnupg \
+  sequoia-sq \
   mariadb-client \
   perl \
   perl-dev \
@@ -135,6 +136,12 @@ COPY quarantine_notify.py /usr/local/bin/quarantine_notify.py
 COPY quota_notify.py /usr/local/bin/quota_notify.py
 COPY repl_health.sh /usr/local/bin/repl_health.sh
 COPY optimize-fts.sh /usr/local/bin/optimize-fts.sh
+
+# The sq CLI is not stable across releases - --recipient-file became --for-file
+# between 0.40 and 1.x - so fail the build rather than silently fall back to
+# gpg (and to AEAD output) at delivery time.
+RUN sq encrypt --help 2>&1 | grep -q -- '--for-file' \
+  || { echo 'sq CLI changed: --for-file is gone, review encrypt_with_sq()'; exit 1; }
 
 COPY pgp-storage-plugin/mail-pgp-storage-plugin.c /tmp/pgp-storage-plugin/
 RUN apk add --no-cache --virtual .pgp-build-deps gcc musl-dev \
