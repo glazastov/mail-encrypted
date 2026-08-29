@@ -77,6 +77,36 @@ def candidates_from_headers(message):
                     header_recipients.append(addr.lower())
     return header_recipients
 
+DB_CONFIG_FILES = (
+    "/etc/dovecot/sql/dovecot-dict-sql-userdb.conf",
+    "/etc/dovecot/sql/dovecot-dict-sql-quota.conf",
+)
+
+def db_credentials():
+    dbname = os.environ.get("DBNAME")
+    dbuser = os.environ.get("DBUSER")
+    dbpass = os.environ.get("DBPASS")
+    if dbname and dbuser and dbpass:
+        return dbname, dbuser, dbpass
+
+    # Dovecot's master process sanitises the environment of its service
+    # processes, so DBNAME/DBUSER/DBPASS do not survive into an LMTP or IMAP
+    # worker unless they are listed in import_environment. Fall back to the
+    # connect string mailcow writes for the SQL userdb.
+    for path in DB_CONFIG_FILES:
+        try:
+            with open(path) as handle:
+                for line in handle:
+                    if not line.lstrip().startswith("connect"):
+                        continue
+                    fields = dict(re.findall(r'(\w+)=([^\s"]+)', line))
+                    if fields.get("dbname") and fields.get("user") and fields.get("password"):
+                        log_debug("db_credentials: using connect string from " + path)
+                        return fields["dbname"], fields["user"], fields["password"]
+        except OSError:
+            continue
+    return None, None, None
+
 def load_public_key(candidates):
     # The storage plugin hands the key over directly, so the common path needs
     # no database access at all. The DB lookup below only matters if this is
@@ -92,11 +122,9 @@ def load_public_key(candidates):
         log_debug("load_public_key: MySQLdb not available")
         return None
 
-    dbname = os.environ.get("DBNAME")
-    dbuser = os.environ.get("DBUSER")
-    dbpass = os.environ.get("DBPASS")
+    dbname, dbuser, dbpass = db_credentials()
     if not dbname or not dbuser or not dbpass:
-        log_debug("load_public_key: DB env vars missing")
+        log_debug("load_public_key: no DB credentials from env or mailcow SQL config")
         return None
 
     seen = []

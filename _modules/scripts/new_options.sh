@@ -63,6 +63,8 @@ adapt_new_options() {
   "ACME_PROFILE"
   "ACME_RENEW_BEFORE"
   "ACME_CHECK_INTERVAL"
+  "PGP_STORAGE_DEBUG"
+  "PGP_STORAGE_DEBUG_LOG"
   )
 
   sed -i --follow-symlinks '$a\' mailcow.conf
@@ -327,6 +329,14 @@ adapt_new_options() {
             echo '# How often the ACME container re-checks the certificates (e.g. 8h, 1d).' >> mailcow.conf
             echo '# Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.' >> mailcow.conf
             echo 'ACME_CHECK_INTERVAL=' >> mailcow.conf
+            ;;
+        PGP_STORAGE_DEBUG)
+            echo '# Log every PGP storage encryption decision - 1 to enable, 0 to disable' >> mailcow.conf
+            echo 'PGP_STORAGE_DEBUG=1' >> mailcow.conf
+            ;;
+        PGP_STORAGE_DEBUG_LOG)
+            echo '# Where the PGP storage filter writes its debug log (inside dovecot-mailcow)' >> mailcow.conf
+            echo 'PGP_STORAGE_DEBUG_LOG=/var/log/mailcow-pgp-storage-debug.log' >> mailcow.conf
             ;;
         *)
             echo "${option}=" >> mailcow.conf
