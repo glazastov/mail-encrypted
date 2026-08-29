@@ -38,40 +38,40 @@
       <hr>
       <form data-id="pgp_storage">
         <div class="row">
-          <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">PGP storage encryption:</div>
+          <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">{{ lang.user.pgp_storage }}:</div>
           <div class="col-sm-9 col-12">
             <div class="form-check form-switch mb-2">
               <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}>
-              <label class="form-check-label" for="pgp_storage_encrypt">Encrypt stored messages with my public key</label>
+              <label class="form-check-label" for="pgp_storage_encrypt">{{ lang.user.pgp_storage_enable }}</label>
             </div>
             <textarea class="form-control" id="pgp_public_key" rows="8" name="pgp_public_key" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
             <div id="pgp_key_feedback" class="small mt-1"></div>
             <div class="mt-2 mb-2">
-              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_file_btn"><i class="bi bi-upload"></i> Load from file</button>
-              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"><i class="bi bi-x-lg"></i> Clear</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_file_btn"><i class="bi bi-upload"></i> {{ lang.user.pgp_key_load_file }}</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"><i class="bi bi-x-lg"></i> {{ lang.user.pgp_key_clear }}</button>
               <span id="pgp_key_filename" class="text-muted small ms-2"></span>
             </div>
             <div class="border-start ps-3 mt-3 mb-2" id="pgp_suboptions">
               <div class="form-check form-switch mb-2">
                 <input class="form-check-input" type="checkbox" role="switch" id="pgp_encrypt_subject" name="pgp_encrypt_subject" value="1"{% if mailboxdata.attributes.pgp_encrypt_subject == '1' or mailboxdata.attributes.pgp_encrypt_subject == 1 %} checked{% endif %}>
-                <label class="form-check-label" for="pgp_encrypt_subject">Encrypt the subject as well</label>
-                <div class="text-muted small">The stored subject becomes "[...]"; the real one travels inside the encrypted body. Server-side search by subject stops working for this mailbox, and clients that cannot decrypt show the placeholder in the message list.</div>
+                <label class="form-check-label" for="pgp_encrypt_subject">{{ lang.user.pgp_encrypt_subject }}</label>
+                <div class="text-muted small">{{ lang.user.pgp_encrypt_subject_help }}</div>
               </div>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch" id="pgp_skip_spam" name="pgp_skip_spam" value="1"{% if mailboxdata.attributes.pgp_skip_spam == '1' or mailboxdata.attributes.pgp_skip_spam == 1 %} checked{% endif %}>
-                <label class="form-check-label" for="pgp_skip_spam">Skip spam filtering for this mailbox</label>
-                <div class="text-muted small">Scanning happens before delivery, so the spam filter - and the quarantine, which keeps a full copy in the database - sees the message in cleartext. Turning this on closes that gap, at the cost of receiving unfiltered spam and losing quarantine review.</div>
+                <label class="form-check-label" for="pgp_skip_spam">{{ lang.user.pgp_skip_spam }}</label>
+                <div class="text-muted small">{{ lang.user.pgp_skip_spam_help }}</div>
               </div>
               <div class="mt-3">
-                <label class="form-label mb-1" for="pgp_failure_mode">If a message cannot be encrypted:</label>
+                <label class="form-label mb-1" for="pgp_failure_mode">{{ lang.user.pgp_failure_mode }}:</label>
                 <select class="form-select form-select-sm" id="pgp_failure_mode" name="pgp_failure_mode" style="max-width:32rem">
-                  <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>Store it unencrypted (never lose mail)</option>
-                  <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>Refuse it - nothing readable is ever stored (recommended)</option>
+                  <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>{{ lang.user.pgp_failure_deliver }}</option>
+                  <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>{{ lang.user.pgp_failure_defer }}</option>
                 </select>
-                <div class="text-muted small mt-1">Encryption can fail if the key becomes unusable or the tooling breaks. "Store it unencrypted" keeps delivery working but silently drops the guarantee for that message. "Refuse it" never writes readable mail: incoming mail is answered with a temporary error so the sending server keeps retrying (usually for several days) and its owner is told if it never gets through, and your own client reports an error when saving to Sent or Drafts. The message is never discarded either way.</div>
+                <div class="text-muted small mt-1">{{ lang.user.pgp_failure_mode_help }}</div>
               </div>
             </div>
-            <p class="text-muted">Incoming LMTP deliveries and IMAP appends are stored as PGP/MIME when this is enabled. Keep your private key safe; mailcow only stores the public key.</p>
+            <p class="text-muted">{{ lang.user.pgp_storage_help }}</p>
             <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
           </div>
         </div>
@@ -81,6 +81,18 @@
       <input type="file" id="pgp_key_file" accept=".asc,.gpg,.pgp,.key,.txt,text/plain" style="display:none">
       <script>
       (function () {
+        var msg = {
+          isPrivate:    {{ lang.user.pgp_js_private|json_encode|raw }},
+          notArmored:   {{ lang.user.pgp_js_not_armored|json_encode|raw }},
+          badBase64:    {{ lang.user.pgp_js_bad_base64|json_encode|raw }},
+          badChecksum:  {{ lang.user.pgp_js_bad_checksum|json_encode|raw }},
+          notPacket:    {{ lang.user.pgp_js_not_packet|json_encode|raw }},
+          notPublicKey: {{ lang.user.pgp_js_not_public_key|json_encode|raw }},
+          valid:        {{ lang.user.pgp_js_valid|json_encode|raw }},
+          fileTooLarge: {{ lang.user.pgp_js_file_too_large|json_encode|raw }},
+          unreadable:   {{ lang.user.pgp_js_file_unreadable|json_encode|raw }},
+          keyRequired:  {{ lang.user.pgp_js_key_required|json_encode|raw }}
+        };
         var ta = document.getElementById('pgp_public_key');
         if (!ta) { return; }
         var feedback = document.getElementById('pgp_key_feedback');
@@ -107,11 +119,11 @@
           text = (text || '').replace(/\r\n?/g, '\n').trim();
           if (text === '') { return { ok: null, msg: '' }; }
           if (/PRIVATE KEY BLOCK/i.test(text)) {
-            return { ok: false, msg: 'That is a PRIVATE key. Never upload your private key - paste the public one.' };
+            return { ok: false, msg: msg.isPrivate };
           }
           var m = text.match(/^-----BEGIN PGP PUBLIC KEY BLOCK-----\n([\s\S]*)\n-----END PGP PUBLIC KEY BLOCK-----$/);
           if (!m) {
-            return { ok: false, msg: 'Not an armored PGP public key block (BEGIN/END lines missing).' };
+            return { ok: false, msg: msg.notArmored };
           }
           var b64 = '', crc = null, inHeaders = true;
           m[1].split('\n').forEach(function (line) {
@@ -126,32 +138,32 @@
             b64 += line;
           });
           if (b64.length < 24 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
-            return { ok: false, msg: 'The body of the key is not valid base64.' };
+            return { ok: false, msg: msg.badBase64 };
           }
           var bin;
           try { bin = atob(b64); } catch (e) {
-            return { ok: false, msg: 'The body of the key is not valid base64.' };
+            return { ok: false, msg: msg.badBase64 };
           }
           if (crc !== null) {
             var crcBin;
             try { crcBin = atob(crc); } catch (e) { crcBin = ''; }
             if (crcBin.length !== 3) {
-              return { ok: false, msg: 'Checksum mismatch - the key looks truncated or corrupted.' };
+              return { ok: false, msg: msg.badChecksum };
             }
             var expected = (crcBin.charCodeAt(0) << 16) | (crcBin.charCodeAt(1) << 8) | crcBin.charCodeAt(2);
             if (crc24(bin) !== expected) {
-              return { ok: false, msg: 'Checksum mismatch - the key looks truncated or corrupted.' };
+              return { ok: false, msg: msg.badChecksum };
             }
           }
           var tag = bin.charCodeAt(0);
           if (!(tag & 0x80)) {
-            return { ok: false, msg: 'Not a valid OpenPGP packet.' };
+            return { ok: false, msg: msg.notPacket };
           }
           var packet = ((tag & 0xC0) === 0xC0) ? (tag & 0x3F) : ((tag >> 2) & 0x0F);
           if (packet !== 6) {
-            return { ok: false, msg: 'The block does not start with an OpenPGP public key packet.' };
+            return { ok: false, msg: msg.notPublicKey };
           }
-          return { ok: true, msg: 'Valid public key (' + bin.length + ' bytes).' };
+          return { ok: true, msg: msg.valid.replace('%s', bin.length) };
         }
 
         function render() {
@@ -195,13 +207,13 @@
           if (file.size > MAX_BYTES) {
             ta.classList.add('is-invalid');
             feedback.className = 'small mt-1 text-danger';
-            feedback.textContent = 'File is too large (128 KB maximum).';
+            feedback.textContent = msg.fileTooLarge;
             return;
           }
           var reader = new FileReader();
           reader.onerror = function () {
             feedback.className = 'small mt-1 text-danger';
-            feedback.textContent = 'Could not read that file.';
+            feedback.textContent = msg.unreadable;
           };
           reader.onload = function () {
             ta.value = String(reader.result).replace(/\r\n?/g, '\n').trim() + '\n';
@@ -221,7 +233,7 @@
             if (result.ok === null) {
               ta.classList.add('is-invalid');
               feedback.className = 'small mt-1 text-danger';
-              feedback.textContent = 'A public key is required to enable PGP storage encryption.';
+              feedback.textContent = msg.keyRequired;
             }
           }
         }, true);
