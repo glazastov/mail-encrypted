@@ -12,6 +12,10 @@ import datetime
 from email.message import EmailMessage
 from email.policy import SMTP
 
+# Signals to the storage plugin that encryption was wanted but did not happen,
+# so it can apply the mailbox's failure mode instead of assuming success.
+EXIT_NOT_ENCRYPTED = 75
+
 DEFAULT_DEBUG_LOG = "/var/log/mailcow-pgp-storage-debug.log"
 MAX_LOG_SIZE = 1048576  # 1MB
 LOG_BACKUP_COUNT = 5
@@ -356,15 +360,17 @@ def main():
     original = sys.stdin.buffer.read()
     parsed = email.message_from_bytes(original, policy=SMTP)
 
+    # Already protected: passing it through unchanged is a success, not a
+    # failure to encrypt.
     if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
         emit(original)
-        return
+        return 0
     if parsed.get_content_type().lower() == "multipart/encrypted":
         emit(original)
-        return
+        return 0
     if b"-----BEGIN PGP MESSAGE-----" in original[:4096]:
         emit(original)
-        return
+        return 0
 
     argv_recipients = get_argv_recipients()
     env_recipients = candidates_from_env()
@@ -383,17 +389,19 @@ def main():
         if not public_key:
             log_debug("No public key found for any candidate")
             emit(original)
-            return
+            return EXIT_NOT_ENCRYPTED
         encrypted = encrypt(original, public_key)
         if encrypted:
             emit(pgp_mime(original, encrypted, hide_subject))
             log_debug("Encryption successful for key_len=" + str(len(public_key)))
-        else:
-            log_debug("Encryption returned None, emitting original")
-            emit(original)
+            return 0
+        log_debug("Encryption returned None, emitting original")
+        emit(original)
+        return EXIT_NOT_ENCRYPTED
     except Exception as e:
         log_debug("Exception: " + str(e))
         emit(original)
+        return EXIT_NOT_ENCRYPTED
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
