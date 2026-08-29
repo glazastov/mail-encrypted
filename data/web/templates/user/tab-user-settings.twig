@@ -55,7 +55,7 @@
               <div class="form-check form-switch mb-2">
                 <input class="form-check-input" type="checkbox" role="switch" id="pgp_encrypt_subject" name="pgp_encrypt_subject" value="1"{% if mailboxdata.attributes.pgp_encrypt_subject == '1' or mailboxdata.attributes.pgp_encrypt_subject == 1 %} checked{% endif %}>
                 <label class="form-check-label" for="pgp_encrypt_subject">Encrypt the subject as well</label>
-                <div class="text-muted small">The stored subject becomes "[Encrypted message]"; the real one travels inside the encrypted body. Server-side search by subject stops working for this mailbox, and clients that cannot decrypt show the placeholder in the message list.</div>
+                <div class="text-muted small">The stored subject becomes "[...]"; the real one travels inside the encrypted body. Server-side search by subject stops working for this mailbox, and clients that cannot decrypt show the placeholder in the message list.</div>
               </div>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" role="switch" id="pgp_skip_spam" name="pgp_skip_spam" value="1"{% if mailboxdata.attributes.pgp_skip_spam == '1' or mailboxdata.attributes.pgp_skip_spam == 1 %} checked{% endif %}>

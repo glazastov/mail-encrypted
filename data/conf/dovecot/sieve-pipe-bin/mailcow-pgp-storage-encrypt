@@ -42,7 +42,7 @@ def log_debug(msg):
     try:
         rotate_log(debug_log)
         with open(debug_log, "a") as f:
-            timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             f.write("{} {}\n".format(timestamp, msg))
     except Exception:
         pass
@@ -231,13 +231,56 @@ def import_key(gnupghome, public_key):
     log_debug("import_key: keyring is empty after import")
     return None
 
-def encrypt(original, public_key):
+def encrypt_with_sq(original, public_key):
+    """Encrypt with sequoia, which is what Stalwart uses.
+
+    Unlike gpg, sequoia does not switch to AEAD/OCB just because the recipient
+    key advertises support for it, so the result stays readable by clients
+    built on older OpenPGP stacks. It also takes the certificate as a file,
+    so no keyring or fingerprint lookup is needed.
+    """
+    workdir = tempfile.mkdtemp(prefix="mailcow-pgp-sq-")
+    try:
+        os.chmod(workdir, 0o700)
+        keyfile = os.path.join(workdir, "recipient.asc")
+        with open(keyfile, "w") as handle:
+            handle.write(public_key)
+
+        env = dict(os.environ)
+        # sq wants somewhere to put its state; the filter runs with a stripped
+        # environment and usually has no HOME.
+        env.setdefault("HOME", workdir)
+        try:
+            proc = subprocess.run(
+                ["sq", "encrypt", "--for-file", keyfile],
+                input=original,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+        except FileNotFoundError:
+            log_debug("encrypt_with_sq: sq not installed")
+            return None
+        if proc.returncode != 0:
+            log_debug("encrypt_with_sq: sq exited {}: {}".format(
+                proc.returncode,
+                proc.stderr.decode(errors="replace").strip().replace("\n", " | ")))
+            return None
+        if not proc.stdout.startswith(b"-----BEGIN PGP MESSAGE-----"):
+            log_debug("encrypt_with_sq: unexpected output from sq")
+            return None
+        log_debug("encrypt_with_sq: ok, {} bytes".format(len(proc.stdout)))
+        return proc.stdout
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+def encrypt_with_gpg(original, public_key):
     gnupghome = tempfile.mkdtemp(prefix="mailcow-pgp-")
     try:
         os.chmod(gnupghome, 0o700)
-        fingerprint = import_key(gnupghome, normalize_armor(public_key))
+        fingerprint = import_key(gnupghome, public_key)
         if not fingerprint:
-            log_debug("encrypt: could not get fingerprint")
+            log_debug("encrypt_with_gpg: could not get fingerprint")
             return None
         try:
             proc = subprocess.run(
@@ -256,18 +299,29 @@ def encrypt(original, public_key):
                 ],
                 input=original,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
         except FileNotFoundError:
+            log_debug("encrypt_with_gpg: gpg not installed")
             return None
         if proc.returncode != 0:
-            log_debug("encrypt: gpg failed with code " + str(proc.returncode))
+            log_debug("encrypt_with_gpg: gpg exited {}: {}".format(
+                proc.returncode,
+                proc.stderr.decode(errors="replace").strip().replace("\n", " | ")))
             return None
         return proc.stdout
     finally:
         shutil.rmtree(gnupghome, ignore_errors=True)
 
-HIDDEN_SUBJECT = "[Encrypted message]"
+def encrypt(original, public_key):
+    armored = normalize_armor(public_key)
+    encrypted = encrypt_with_sq(original, armored)
+    if encrypted:
+        return encrypted
+    log_debug("encrypt: falling back to gpg")
+    return encrypt_with_gpg(original, armored)
+
+HIDDEN_SUBJECT = "[...]"
 
 def pgp_mime(original, encrypted, hide_subject=False):
     source = email.message_from_bytes(original, policy=SMTP)
