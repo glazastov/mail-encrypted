@@ -2382,20 +2382,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             }
             $pgp_public_key = trim((string)($_data['pgp_public_key'] ?? ''));
             $pgp_storage_encrypt = !empty($_data['pgp_storage_encrypt']) ? 1 : 0;
-            $pgp_errors = array(
-              'pgp_key_is_private'     => 'That is a PRIVATE key. Never upload your private key - paste the public one.',
-              'pgp_key_not_armored'    => 'Not an armored PGP public key block (BEGIN/END lines missing).',
-              'pgp_key_bad_base64'     => 'The body of the key is not valid base64.',
-              'pgp_key_bad_checksum'   => 'Checksum mismatch - the key looks truncated or corrupted.',
-              'pgp_key_not_public_key' => 'The block does not start with an OpenPGP public key packet.',
-            );
             if ($pgp_public_key !== '') {
               $pgp_error = null;
               if (!pgp_validate_public_key($pgp_public_key, $pgp_error)) {
+                // The error code doubles as the lang key under "danger", so
+                // the message is shown in the user's own language.
                 $_SESSION['return'][] = array(
                   'type' => 'danger',
                   'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
-                  'msg' => isset($pgp_errors[$pgp_error]) ? $pgp_errors[$pgp_error] : 'Invalid PGP public key'
+                  'msg' => $pgp_error
                 );
                 continue;
               }
@@ -2406,7 +2401,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               $_SESSION['return'][] = array(
                 'type' => 'danger',
                 'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
-                'msg' => 'A public key is required to enable PGP storage encryption.'
+                'msg' => 'pgp_key_required'
               );
               continue;
             }
