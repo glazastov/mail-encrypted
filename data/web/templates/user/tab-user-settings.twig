@@ -62,6 +62,14 @@
                 <label class="form-check-label" for="pgp_skip_spam">Skip spam filtering for this mailbox</label>
                 <div class="text-muted small">Scanning happens before delivery, so the spam filter - and the quarantine, which keeps a full copy in the database - sees the message in cleartext. Turning this on closes that gap, at the cost of receiving unfiltered spam and losing quarantine review.</div>
               </div>
+              <div class="mt-3">
+                <label class="form-label mb-1" for="pgp_failure_mode">If a message cannot be encrypted:</label>
+                <select class="form-select form-select-sm" id="pgp_failure_mode" name="pgp_failure_mode" style="max-width:32rem">
+                  <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>Store it unencrypted (never lose mail)</option>
+                  <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>Refuse it - nothing readable is ever stored (recommended)</option>
+                </select>
+                <div class="text-muted small mt-1">Encryption can fail if the key becomes unusable or the tooling breaks. "Store it unencrypted" keeps delivery working but silently drops the guarantee for that message. "Refuse it" never writes readable mail: incoming mail is answered with a temporary error so the sending server keeps retrying (usually for several days) and its owner is told if it never gets through, and your own client reports an error when saving to Sent or Drafts. The message is never discarded either way.</div>
+              </div>
             </div>
             <p class="text-muted">Incoming LMTP deliveries and IMAP appends are stored as PGP/MIME when this is enabled. Keep your private key safe; mailcow only stores the public key.</p>
             <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>

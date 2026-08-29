@@ -25,10 +25,23 @@
 
 const char *mail_pgp_storage_plugin_version = DOVECOT_ABI_VERSION;
 
+/* What to do when a message cannot be encrypted. Storing it in the clear keeps
+   mail flowing at the cost of the guarantee the feature exists to provide, so
+   it must be a deliberate choice rather than a default nobody noticed. */
+/* Only two modes are honest here. A permanent refusal is not reachable:
+   mail_deliver() maps every storage error except NOQUOTA to
+   MAIL_DELIVER_ERROR_TEMPORARY, so LMTP always answers 451 no matter which
+   mail_error we set. */
+enum pgp_failure_mode {
+	PGP_FAILURE_DELIVER = 0,	/* store unencrypted */
+	PGP_FAILURE_DEFER,		/* refuse; 451 on LMTP, error on APPEND */
+};
+
 struct pgp_storage_user {
 	union mail_user_module_context module_ctx;
 	const char *bin_path;
 	unsigned int timeout_msecs;
+	enum pgp_failure_mode failure_mode;
 	bool enabled;
 };
 
@@ -56,7 +69,7 @@ static const char *const pgp_storage_forward_env[] = {
 
 static struct istream *
 pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
-		       struct istream *input)
+		       struct istream *input, bool *encrypted_r)
 {
 	struct mail_user *user = box->storage->user;
 	const char *temp_prefix = mailbox_list_get_temp_prefix(box->list);
@@ -67,6 +80,8 @@ pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
 	enum program_client_exit_status status;
 	unsigned int i;
 	uoff_t size;
+
+	*encrypted_r = FALSE;
 
 	/* Buffer the message up front. program_client consumes the input
 	   stream, and the input from an IMAP APPEND is not seekable, so
@@ -108,8 +123,8 @@ pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
 		   stream stays valid past program_client_destroy(). */
 		encrypted = program_client_get_output_seekable(pclient);
 	} else {
-		e_error(user->event, "pgp_storage: filter %s failed (status %d); "
-			"storing message unencrypted",
+		e_error(user->event,
+			"pgp_storage: filter %s failed (status %d)",
 			puser->bin_path, (int)status);
 	}
 	program_client_destroy(&pclient);
@@ -117,10 +132,10 @@ pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
 	if (encrypted != NULL) {
 		if (i_stream_get_size(encrypted, TRUE, &size) > 0 && size > 0) {
 			i_stream_unref(&original);
+			*encrypted_r = TRUE;
 			return encrypted;
 		}
-		e_error(user->event, "pgp_storage: filter produced no output; "
-			"storing message unencrypted");
+		e_error(user->event, "pgp_storage: filter produced no output");
 		i_stream_unref(&encrypted);
 	}
 
@@ -136,6 +151,7 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 	struct pgp_storage_user *puser =
 		PGP_STORAGE_USER_CONTEXT(box->storage->user);
 	struct istream *filtered;
+	bool encrypted;
 	int ret;
 
 	/* ctx->saving marks a message entering the store: an IMAP APPEND, or an
@@ -146,12 +162,27 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 	if (puser == NULL || !puser->enabled || !ctx->saving)
 		return mbox->module_ctx.super.save_begin(ctx, input);
 
-	filtered = pgp_storage_run_filter(box, puser, input);
-	if (filtered == NULL)
-		return mbox->module_ctx.super.save_begin(ctx, input);
+	filtered = pgp_storage_run_filter(box, puser, input, &encrypted);
 
-	ret = mbox->module_ctx.super.save_begin(ctx, filtered);
-	i_stream_unref(&filtered);
+	if (!encrypted && puser->failure_mode != PGP_FAILURE_DELIVER) {
+		/* Refuse the save rather than store readable mail. Nothing is
+		   lost either way: a deferred sender retries, a rejected one
+		   gets a bounce. */
+		const char *reason =
+			"Message could not be encrypted for storage";
+
+		mail_storage_set_error(box->storage, MAIL_ERROR_TEMP, reason);
+		e_error(box->storage->user->event,
+			"pgp_storage: %s; refusing the save", reason);
+		if (filtered != NULL)
+			i_stream_unref(&filtered);
+		return -1;
+	}
+
+	ret = mbox->module_ctx.super.save_begin(
+		ctx, filtered != NULL ? filtered : input);
+	if (filtered != NULL)
+		i_stream_unref(&filtered);
 	return ret;
 }
 
@@ -202,6 +233,23 @@ static void pgp_storage_mail_user_created(struct mail_user *user)
 	   line based, so the filter looks the key up in SQL itself. */
 	value = mail_user_plugin_getenv(user, "pgp_storage_encrypt");
 	puser->enabled = value != NULL && *value == '1';
+
+	value = mail_user_plugin_getenv(user, "pgp_failure_mode");
+	if (value == NULL || *value == '\0' ||
+	    strcmp(value, "deliver") == 0) {
+		puser->failure_mode = PGP_FAILURE_DELIVER;
+	} else if (strcmp(value, "defer") == 0) {
+		puser->failure_mode = PGP_FAILURE_DEFER;
+	} else {
+		/* An unreadable value means someone asked for something other
+		   than the default. Falling back to storing in the clear would
+		   be exactly the silent downgrade this setting exists to
+		   prevent, so hold the mail and make the error visible. */
+		e_error(user->event, "pgp_storage: unknown pgp_failure_mode "
+			"'%s'; deferring delivery until it is corrected",
+			value);
+		puser->failure_mode = PGP_FAILURE_DEFER;
+	}
 
 	if (puser->enabled) {
 		e_debug(user->event, "pgp_storage: enabled for %s via %s",
