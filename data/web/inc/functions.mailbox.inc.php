@@ -2298,6 +2298,16 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             if (!$pgp_storage_encrypt && empty($pgp_public_key)) {
               $pgp_public_key = '';
             }
+            // OpenPGP armor needs a blank line between the BEGIN line and the
+            // base64 body. Pasted keys routinely lose it, and gpg then exits
+            // non-zero on import even though it read the key fine.
+            if (!empty($pgp_public_key)) {
+              $key_lines = preg_split('/\R/', $pgp_public_key);
+              if (count($key_lines) > 1 && trim($key_lines[1]) !== '' && strpos($key_lines[1], ':') === false) {
+                array_splice($key_lines, 1, 0, '');
+              }
+              $pgp_public_key = implode("\n", $key_lines);
+            }
             $stmt = $pdo->prepare("UPDATE `mailbox`
               SET `attributes` = JSON_SET(`attributes`, '$.pgp_storage_encrypt', :pgp_storage_encrypt),
                   `attributes` = JSON_SET(`attributes`, '$.pgp_public_key', :pgp_public_key)
