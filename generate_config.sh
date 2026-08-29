@@ -308,6 +308,19 @@ ACME_ACCOUNT_EMAIL=me@example.com
 #AZUREDNS_RESOURCEGROUP="your-resource-group"
 #AZUREDNS_ZONE="your-zone-name"
 
+# ACME certificate profile requested from the CA. Leave empty for the CA default.
+# Let's Encrypt offers: classic (90 days), tlsserver (90 days), shortlived (6 days).
+# See https://letsencrypt.org/docs/profiles
+ACME_PROFILE=
+
+# How long before expiry a certificate is renewed, in seconds.
+# Leave empty for the default: 30 days, or 2 days when ACME_PROFILE=shortlived.
+ACME_RENEW_BEFORE=
+
+# How often the ACME container re-checks the certificates (e.g. 8h, 1d).
+# Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.
+ACME_CHECK_INTERVAL=
+
 # Create separate certificates for all domains - y/n
 # this will allow adding more than 100 domains, but some email clients will not be able to connect with alternative hostnames
 # see https://doc.dovecot.org/admin_manual/ssl/sni_support

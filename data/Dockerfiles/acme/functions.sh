@@ -16,6 +16,48 @@ log_f() {
   fi
 }
 
+# Resolve the requested ACME certificate profile and the renewal window it
+# implies. Let's Encrypt's "shortlived" profile issues 6-day certificates, so
+# the stock 30-day renewal threshold would mark every certificate as due on
+# every single run and burn through the rate limits.
+acme_profile_defaults(){
+  ACME_PROFILE="${ACME_PROFILE//[[:space:]]/}"
+  if [[ -n "${ACME_PROFILE}" ]] && [[ ! "${ACME_PROFILE}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    log_f "Ignoring invalid ACME_PROFILE '${ACME_PROFILE}' - using the CA default"
+    ACME_PROFILE=
+  fi
+
+  if [[ "${ACME_PROFILE}" == "shortlived" ]]; then
+    ACME_RENEW_BEFORE_DEFAULT=172800    # 2 days left of a 6 day certificate
+    ACME_CHECK_INTERVAL_DEFAULT=8h
+  else
+    ACME_RENEW_BEFORE_DEFAULT=2592000   # 30 days
+    ACME_CHECK_INTERVAL_DEFAULT=1d
+  fi
+
+  if [[ -z "${ACME_RENEW_BEFORE}" ]]; then
+    ACME_RENEW_BEFORE=${ACME_RENEW_BEFORE_DEFAULT}
+  elif [[ ! "${ACME_RENEW_BEFORE}" =~ ^[0-9]+$ ]] || [[ "${ACME_RENEW_BEFORE}" -lt 3600 ]]; then
+    log_f "Invalid ACME_RENEW_BEFORE '${ACME_RENEW_BEFORE}' - using ${ACME_RENEW_BEFORE_DEFAULT}s"
+    ACME_RENEW_BEFORE=${ACME_RENEW_BEFORE_DEFAULT}
+  fi
+
+  # A threshold at or above the certificate lifetime means "always due".
+  if [[ "${ACME_PROFILE}" == "shortlived" ]] && [[ "${ACME_RENEW_BEFORE}" -ge 432000 ]]; then
+    log_f "ACME_RENEW_BEFORE=${ACME_RENEW_BEFORE}s exceeds the 6 day shortlived lifetime - clamping to ${ACME_RENEW_BEFORE_DEFAULT}s"
+    ACME_RENEW_BEFORE=${ACME_RENEW_BEFORE_DEFAULT}
+  fi
+
+  if [[ -z "${ACME_CHECK_INTERVAL}" ]]; then
+    ACME_CHECK_INTERVAL=${ACME_CHECK_INTERVAL_DEFAULT}
+  elif [[ ! "${ACME_CHECK_INTERVAL}" =~ ^[0-9]+[smhd]?$ ]]; then
+    log_f "Invalid ACME_CHECK_INTERVAL '${ACME_CHECK_INTERVAL}' - using ${ACME_CHECK_INTERVAL_DEFAULT}"
+    ACME_CHECK_INTERVAL=${ACME_CHECK_INTERVAL_DEFAULT}
+  fi
+
+  ACME_RENEW_DAYS=$((ACME_RENEW_BEFORE / 86400))
+}
+
 verify_email(){
   regex="^(([A-Za-z0-9]+((\.|\-|\_|\+)?[A-Za-z0-9]?)*[A-Za-z0-9]+)|[A-Za-z0-9]+)@(([A-Za-z0-9]+)+((\.|\-|\_)?([A-Za-z0-9]+)+)*)+\.([A-Za-z]{2,})+$"
   if [[ $1 =~ ${regex} ]]; then

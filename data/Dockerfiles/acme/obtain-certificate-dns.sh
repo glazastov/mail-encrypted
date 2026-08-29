@@ -44,6 +44,8 @@ if [[ -z ${CERT_DOMAINS[*]} ]]; then
   exit 3
 fi
 
+acme_profile_defaults
+
 if [[ "${LE_STAGING}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   if [[ ! -z "${DIRECTORY_URL}" ]]; then
     log_f "Cannot use DIRECTORY_URL with LE_STAGING=y - ignoring DIRECTORY_URL"
@@ -61,8 +63,8 @@ fi
 if [[ -f ${DOMAINS_FILE} && "$(cat ${DOMAINS_FILE})" ==  "${CERT_DOMAINS[*]}" ]]; then
   if [[ ! -f ${CERT} || ! -f "${KEY}" || -f "${ACME_BASE}/force_renew" ]]; then
     log_f "Certificate ${CERT} doesn't exist yet or forced renewal - start obtaining"
-  elif ! openssl x509 -checkend 2592000 -noout -in ${CERT} > /dev/null; then
-    log_f "Certificate ${CERT} is due for renewal (< 30 days) - start renewing"
+  elif ! openssl x509 -checkend ${ACME_RENEW_BEFORE} -noout -in ${CERT} > /dev/null; then
+    log_f "Certificate ${CERT} is due for renewal (< ${ACME_RENEW_DAYS} days) - start renewing"
   else
     log_f "Certificate ${CERT} validation done, neither changed nor due for renewal."
     exit 2
@@ -132,6 +134,10 @@ TMP_FULLCHAIN=$(mktemp /tmp/acme-fullchain.XXXXXX)
 ACME_CMD=("${ACME_SH_BIN_PATH}" "--home" "${ACME_SH_WORK_HOME}" "--config-home" "${ACME_SH_WORK_HOME}" "--cert-home" "${ACME_SH_WORK_HOME}")
 ACME_CMD+=("${ACME_SH_SERVER_ARGS[@]}")
 ACME_CMD+=("--issue" "--dns" "${ACME_DNS_PROVIDER}" "--key-file" "${KEY}" "--cert-file" "${TMP_CERT}" "--fullchain-file" "${TMP_FULLCHAIN}" "--force")
+if [[ -n "${ACME_PROFILE}" ]]; then
+  log_f "Requesting certificate profile '${ACME_PROFILE}'"
+  ACME_CMD+=("--cert-profile" "${ACME_PROFILE}")
+fi
 for domain in "${CERT_DOMAINS[@]}"; do
   ACME_CMD+=("-d" "${domain}")
 done

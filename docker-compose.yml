@@ -252,7 +252,7 @@ services:
             - sogo
 
     dovecot-mailcow:
-      image: ghcr.io/mailcow/dovecot:2.3.21.1-2
+      image: mailcow/dovecot-pgp:2.3.21.1-2
       build:
         context: ./data/Dockerfiles/dovecot
       depends_on:
@@ -469,7 +469,9 @@ services:
           condition: service_started
         unbound-mailcow:
           condition: service_healthy
-      image: ghcr.io/mailcow/acme:1.98
+      image: mailcow/acme-pgp:1.98
+      build:
+        context: ./data/Dockerfiles/acme
       dns:
         - ${IPV4_NETWORK:-172.22.1}.254
       environment:
@@ -494,6 +496,9 @@ services:
         - REDISPASS=${REDISPASS}
         - SNAT_TO_SOURCE=${SNAT_TO_SOURCE:-n}
         - SNAT6_TO_SOURCE=${SNAT6_TO_SOURCE:-n}
+        - ACME_PROFILE=${ACME_PROFILE:-}
+        - ACME_RENEW_BEFORE=${ACME_RENEW_BEFORE:-}
+        - ACME_CHECK_INTERVAL=${ACME_CHECK_INTERVAL:-}
         - ACME_DNS_CHALLENGE=${ACME_DNS_CHALLENGE:-n}
         - ACME_DNS_PROVIDER=${ACME_DNS_PROVIDER:-dns_xxx}
         - ACME_ACCOUNT_EMAIL=${ACME_ACCOUNT_EMAIL:-me@example.com}

@@ -1,7 +1,2 @@
-require ["vnd.dovecot.filter"];
-
-filter "mailcow-pgp-storage-encrypt" "%u";
-
 # global_sieve_before script
 # global_sieve_before -> user sieve_before (mailcow UI) -> user sieve_after (mailcow UI) -> global_sieve_after
-# O argumento "%u" passa o destinatário da mailbox para o filtro PGP storage

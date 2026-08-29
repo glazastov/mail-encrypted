@@ -82,6 +82,10 @@ done
 log_f "Dovecot OK"
 
 ACME_BASE=/var/lib/acme
+
+# Resolves ACME_PROFILE / ACME_RENEW_BEFORE / ACME_CHECK_INTERVAL
+acme_profile_defaults
+log_f "Certificate profile: ${ACME_PROFILE:-CA default}, renewing ${ACME_RENEW_DAYS} day(s) before expiry, checking every ${ACME_CHECK_INTERVAL}"
 SSL_EXAMPLE=/var/lib/ssl-example
 
 mkdir -p ${ACME_BASE}/acme
@@ -492,7 +496,7 @@ while true; do
       else
         log_f "Certificates were successfully validated, no changes or renewals required, sleeping for another day."
       fi
-      sleep 1d
+      sleep ${ACME_CHECK_INTERVAL}
       ;;
     *) # non-zero
       log_f "Some errors occurred, retrying in 30 minutes..."

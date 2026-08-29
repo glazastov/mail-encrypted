@@ -25,6 +25,11 @@ ENV ACME_SH_BIN=/opt/acme.sh/acme.sh \
     ACME_SH_HOME=/opt/acme.sh \
     ACME_SH_CONFIG_HOME=/var/lib/acme/acme-sh
 
+COPY patch-acme-tiny.py /srv/patch-acme-tiny.py
+RUN python3 /srv/patch-acme-tiny.py \
+      "$(python3 -c 'import acme_tiny, inspect; print(inspect.getsourcefile(acme_tiny))')" \
+  && python3 -c 'import acme_tiny'
+
 COPY acme.sh /srv/acme.sh
 COPY functions.sh /srv/functions.sh
 COPY obtain-certificate.sh /srv/obtain-certificate.sh
