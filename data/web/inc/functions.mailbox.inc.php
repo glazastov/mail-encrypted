@@ -1,4 +1,99 @@
 <?php
+// OpenPGP armor helpers. The web container has no dependable gpg binding, so
+// validation is structural: markers, base64, the CRC24 checksum and the first
+// packet tag. That rejects everything which would fail at delivery time
+// without pretending to be a full OpenPGP parser.
+
+function pgp_normalize_public_key($key) {
+  $key = trim(preg_replace('/\R/', "\n", (string)$key));
+  if ($key === '') {
+    return '';
+  }
+  $lines = explode("\n", $key);
+  // Armor needs a blank line between the BEGIN line and the base64 body.
+  // Pasted keys routinely lose it and gpg then exits non-zero on import.
+  if (count($lines) > 1 && trim($lines[1]) !== '' && strpos($lines[1], ':') === false) {
+    array_splice($lines, 1, 0, '');
+  }
+  return implode("\n", $lines) . "\n";
+}
+
+function pgp_crc24($data) {
+  $crc = 0xB704CE;
+  $len = strlen($data);
+  for ($i = 0; $i < $len; $i++) {
+    $crc ^= (ord($data[$i]) << 16);
+    for ($j = 0; $j < 8; $j++) {
+      $crc <<= 1;
+      if ($crc & 0x1000000) {
+        $crc ^= 0x1864CFB;
+      }
+    }
+  }
+  return $crc & 0xFFFFFF;
+}
+
+function pgp_validate_public_key($key, &$error = null) {
+  $key = pgp_normalize_public_key($key);
+  if (stripos($key, 'PRIVATE KEY BLOCK') !== false) {
+    $error = 'pgp_key_is_private';
+    return false;
+  }
+  if (!preg_match('/\A-----BEGIN PGP PUBLIC KEY BLOCK-----\n(.*)\n-----END PGP PUBLIC KEY BLOCK-----\s*\z/s', $key, $matches)) {
+    $error = 'pgp_key_not_armored';
+    return false;
+  }
+
+  $b64 = '';
+  $crc = null;
+  $in_headers = true;
+  foreach (explode("\n", $matches[1]) as $line) {
+    $line = trim($line);
+    if ($in_headers) {
+      if ($line === '') { $in_headers = false; continue; }
+      if (strpos($line, ':') !== false) { continue; }
+      $in_headers = false;
+    }
+    if ($line === '') { continue; }
+    if ($line[0] === '=') { $crc = substr($line, 1); continue; }
+    $b64 .= $line;
+  }
+
+  $bin = base64_decode($b64, true);
+  if ($bin === false || strlen($bin) < 16) {
+    $error = 'pgp_key_bad_base64';
+    return false;
+  }
+
+  // The CRC24 line is optional in newer armor, so only check it when present.
+  if ($crc !== null) {
+    $crc_bin = base64_decode($crc, true);
+    if ($crc_bin === false || strlen($crc_bin) !== 3) {
+      $error = 'pgp_key_bad_checksum';
+      return false;
+    }
+    $expected = (ord($crc_bin[0]) << 16) | (ord($crc_bin[1]) << 8) | ord($crc_bin[2]);
+    if (pgp_crc24($bin) !== $expected) {
+      $error = 'pgp_key_bad_checksum';
+      return false;
+    }
+  }
+
+  // The first packet has to be a public key packet (tag 6).
+  $tag = ord($bin[0]);
+  if (!($tag & 0x80)) {
+    $error = 'pgp_key_not_public_key';
+    return false;
+  }
+  $packet = (($tag & 0xC0) === 0xC0) ? ($tag & 0x3F) : (($tag >> 2) & 0x0F);
+  if ($packet !== 6) {
+    $error = 'pgp_key_not_public_key';
+    return false;
+  }
+
+  return true;
+}
+
 function mailbox($_action, $_type, $_data = null, $_extra = null) {
   global $pdo;
   global $redis;
@@ -2287,26 +2382,33 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             }
             $pgp_public_key = trim((string)($_data['pgp_public_key'] ?? ''));
             $pgp_storage_encrypt = !empty($_data['pgp_storage_encrypt']) ? 1 : 0;
-            if ($pgp_storage_encrypt && !preg_match('/-----BEGIN PGP PUBLIC KEY BLOCK-----[\s\S]+-----END PGP PUBLIC KEY BLOCK-----/', $pgp_public_key)) {
+            $pgp_errors = array(
+              'pgp_key_is_private'     => 'That is a PRIVATE key. Never upload your private key - paste the public one.',
+              'pgp_key_not_armored'    => 'Not an armored PGP public key block (BEGIN/END lines missing).',
+              'pgp_key_bad_base64'     => 'The body of the key is not valid base64.',
+              'pgp_key_bad_checksum'   => 'Checksum mismatch - the key looks truncated or corrupted.',
+              'pgp_key_not_public_key' => 'The block does not start with an OpenPGP public key packet.',
+            );
+            if ($pgp_public_key !== '') {
+              $pgp_error = null;
+              if (!pgp_validate_public_key($pgp_public_key, $pgp_error)) {
+                $_SESSION['return'][] = array(
+                  'type' => 'danger',
+                  'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                  'msg' => isset($pgp_errors[$pgp_error]) ? $pgp_errors[$pgp_error] : 'Invalid PGP public key'
+                );
+                continue;
+              }
+              // Store it normalised so delivery never has to repair the armor.
+              $pgp_public_key = pgp_normalize_public_key($pgp_public_key);
+            }
+            elseif ($pgp_storage_encrypt) {
               $_SESSION['return'][] = array(
                 'type' => 'danger',
                 'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
-                'msg' => 'Invalid PGP public key'
+                'msg' => 'A public key is required to enable PGP storage encryption.'
               );
               continue;
-            }
-            if (!$pgp_storage_encrypt && empty($pgp_public_key)) {
-              $pgp_public_key = '';
-            }
-            // OpenPGP armor needs a blank line between the BEGIN line and the
-            // base64 body. Pasted keys routinely lose it, and gpg then exits
-            // non-zero on import even though it read the key fine.
-            if (!empty($pgp_public_key)) {
-              $key_lines = preg_split('/\R/', $pgp_public_key);
-              if (count($key_lines) > 1 && trim($key_lines[1]) !== '' && strpos($key_lines[1], ':') === false) {
-                array_splice($key_lines, 1, 0, '');
-              }
-              $pgp_public_key = implode("\n", $key_lines);
             }
             $stmt = $pdo->prepare("UPDATE `mailbox`
               SET `attributes` = JSON_SET(`attributes`, '$.pgp_storage_encrypt', :pgp_storage_encrypt),

@@ -44,12 +44,160 @@
               <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}>
               <label class="form-check-label" for="pgp_storage_encrypt">Encrypt stored messages with my public key</label>
             </div>
-            <textarea class="form-control" rows="8" name="pgp_public_key" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
+            <textarea class="form-control" id="pgp_public_key" rows="8" name="pgp_public_key" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
+            <div id="pgp_key_feedback" class="small mt-1"></div>
+            <div class="mt-2 mb-2">
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_file_btn"><i class="bi bi-upload"></i> Load from file</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"><i class="bi bi-x-lg"></i> Clear</button>
+              <span id="pgp_key_filename" class="text-muted small ms-2"></span>
+            </div>
             <p class="text-muted">Incoming LMTP deliveries and IMAP appends are stored as PGP/MIME when this is enabled. Keep your private key safe; mailcow only stores the public key.</p>
-            <button type="button" class="btn btn-sm btn-success" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
+            <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
           </div>
         </div>
       </form>
+      {# Kept outside the form: edit_selected serialises every input it finds,
+         and the file picker only ever feeds the textarea. #}
+      <input type="file" id="pgp_key_file" accept=".asc,.gpg,.pgp,.key,.txt,text/plain" style="display:none">
+      <script>
+      (function () {
+        var ta = document.getElementById('pgp_public_key');
+        if (!ta) { return; }
+        var feedback = document.getElementById('pgp_key_feedback');
+        var fileInput = document.getElementById('pgp_key_file');
+        var filename = document.getElementById('pgp_key_filename');
+        var toggle = document.getElementById('pgp_storage_encrypt');
+        var saveBtn = document.getElementById('pgp_storage_save');
+        var MAX_BYTES = 128 * 1024;
+
+        function crc24(data) {
+          var crc = 0xB704CE;
+          for (var i = 0; i < data.length; i++) {
+            crc ^= (data.charCodeAt(i) & 0xFF) << 16;
+            for (var j = 0; j < 8; j++) {
+              crc <<= 1;
+              if (crc & 0x1000000) { crc ^= 0x1864CFB; }
+            }
+          }
+          return crc & 0xFFFFFF;
+        }
+
+        // Mirrors pgp_validate_public_key() in functions.mailbox.inc.php.
+        function validate(text) {
+          text = (text || '').replace(/\r\n?/g, '\n').trim();
+          if (text === '') { return { ok: null, msg: '' }; }
+          if (/PRIVATE KEY BLOCK/i.test(text)) {
+            return { ok: false, msg: 'That is a PRIVATE key. Never upload your private key - paste the public one.' };
+          }
+          var m = text.match(/^-----BEGIN PGP PUBLIC KEY BLOCK-----\n([\s\S]*)\n-----END PGP PUBLIC KEY BLOCK-----$/);
+          if (!m) {
+            return { ok: false, msg: 'Not an armored PGP public key block (BEGIN/END lines missing).' };
+          }
+          var b64 = '', crc = null, inHeaders = true;
+          m[1].split('\n').forEach(function (line) {
+            line = line.trim();
+            if (inHeaders) {
+              if (line === '') { inHeaders = false; return; }
+              if (line.indexOf(':') !== -1) { return; }
+              inHeaders = false;
+            }
+            if (line === '') { return; }
+            if (line.charAt(0) === '=') { crc = line.slice(1); return; }
+            b64 += line;
+          });
+          if (b64.length < 24 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
+            return { ok: false, msg: 'The body of the key is not valid base64.' };
+          }
+          var bin;
+          try { bin = atob(b64); } catch (e) {
+            return { ok: false, msg: 'The body of the key is not valid base64.' };
+          }
+          if (crc !== null) {
+            var crcBin;
+            try { crcBin = atob(crc); } catch (e) { crcBin = ''; }
+            if (crcBin.length !== 3) {
+              return { ok: false, msg: 'Checksum mismatch - the key looks truncated or corrupted.' };
+            }
+            var expected = (crcBin.charCodeAt(0) << 16) | (crcBin.charCodeAt(1) << 8) | crcBin.charCodeAt(2);
+            if (crc24(bin) !== expected) {
+              return { ok: false, msg: 'Checksum mismatch - the key looks truncated or corrupted.' };
+            }
+          }
+          var tag = bin.charCodeAt(0);
+          if (!(tag & 0x80)) {
+            return { ok: false, msg: 'Not a valid OpenPGP packet.' };
+          }
+          var packet = ((tag & 0xC0) === 0xC0) ? (tag & 0x3F) : ((tag >> 2) & 0x0F);
+          if (packet !== 6) {
+            return { ok: false, msg: 'The block does not start with an OpenPGP public key packet.' };
+          }
+          return { ok: true, msg: 'Valid public key (' + bin.length + ' bytes).' };
+        }
+
+        function render() {
+          var result = validate(ta.value);
+          ta.classList.remove('is-valid', 'is-invalid');
+          feedback.className = 'small mt-1';
+          if (result.ok === null) { feedback.textContent = ''; return result; }
+          ta.classList.add(result.ok ? 'is-valid' : 'is-invalid');
+          feedback.classList.add(result.ok ? 'text-success' : 'text-danger');
+          feedback.textContent = result.msg;
+          return result;
+        }
+
+        ta.addEventListener('input', render);
+        ta.addEventListener('blur', render);
+
+        document.getElementById('pgp_key_file_btn').addEventListener('click', function () {
+          fileInput.click();
+        });
+        document.getElementById('pgp_key_clear_btn').addEventListener('click', function () {
+          ta.value = '';
+          filename.textContent = '';
+          render();
+        });
+
+        fileInput.addEventListener('change', function () {
+          var file = this.files && this.files[0];
+          this.value = '';
+          if (!file) { return; }
+          if (file.size > MAX_BYTES) {
+            ta.classList.add('is-invalid');
+            feedback.className = 'small mt-1 text-danger';
+            feedback.textContent = 'File is too large (128 KB maximum).';
+            return;
+          }
+          var reader = new FileReader();
+          reader.onerror = function () {
+            feedback.className = 'small mt-1 text-danger';
+            feedback.textContent = 'Could not read that file.';
+          };
+          reader.onload = function () {
+            ta.value = String(reader.result).replace(/\r\n?/g, '\n').trim() + '\n';
+            filename.textContent = file.name;
+            render();
+          };
+          reader.readAsText(file);
+        });
+
+        // Bound on the button in the capture phase so it runs before mailcow's
+        // delegated edit_selected handler on document, and can stop it.
+        saveBtn.addEventListener('click', function (e) {
+          var result = render();
+          if (toggle.checked && result.ok !== true) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (result.ok === null) {
+              ta.classList.add('is-invalid');
+              feedback.className = 'small mt-1 text-danger';
+              feedback.textContent = 'A public key is required to enable PGP storage encryption.';
+            }
+          }
+        }, true);
+
+        render();
+      })();
+      </script>
       {# Show TLS policy options #}
       <div class="row">
         <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">{{ lang.user.tls_policy }}:</div>
