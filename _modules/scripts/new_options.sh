@@ -60,6 +60,9 @@ adapt_new_options() {
   "ACME_DNS_CHALLENGE"
   "ACME_DNS_PROVIDER"
   "ACME_ACCOUNT_EMAIL"
+  "ACME_PROFILE"
+  "ACME_RENEW_BEFORE"
+  "ACME_CHECK_INTERVAL"
   )
 
   sed -i --follow-symlinks '$a\' mailcow.conf
@@ -308,6 +311,22 @@ adapt_new_options() {
         ACME_ACCOUNT_EMAIL)
             echo '# Account email for ACME DNS-01 challenge registration' >> mailcow.conf
             echo 'ACME_ACCOUNT_EMAIL=me@example.com' >> mailcow.conf
+            ;;
+        ACME_PROFILE)
+            echo '# ACME certificate profile requested from the CA. Leave empty for the CA default.' >> mailcow.conf
+            echo '# Lets Encrypt offers: classic (90 days), tlsserver (90 days), shortlived (6 days).' >> mailcow.conf
+            echo '# See https://letsencrypt.org/docs/profiles' >> mailcow.conf
+            echo 'ACME_PROFILE=' >> mailcow.conf
+            ;;
+        ACME_RENEW_BEFORE)
+            echo '# How long before expiry a certificate is renewed, in seconds.' >> mailcow.conf
+            echo '# Leave empty for the default: 30 days, or 2 days when ACME_PROFILE=shortlived.' >> mailcow.conf
+            echo 'ACME_RENEW_BEFORE=' >> mailcow.conf
+            ;;
+        ACME_CHECK_INTERVAL)
+            echo '# How often the ACME container re-checks the certificates (e.g. 8h, 1d).' >> mailcow.conf
+            echo '# Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.' >> mailcow.conf
+            echo 'ACME_CHECK_INTERVAL=' >> mailcow.conf
             ;;
         *)
             echo "${option}=" >> mailcow.conf

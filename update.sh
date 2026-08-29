@@ -463,7 +463,13 @@ fi
 
 echo -e "\e[32mFetching new images, if any...\e[0m"
 sleep 2
-$COMPOSE_COMMAND pull
+$COMPOSE_COMMAND pull --ignore-buildable
+
+echo -e "\e[32mBuilding local images (PGP storage plugin, ACME profiles)...\e[0m"
+if ! $COMPOSE_COMMAND build --pull; then
+  echo -e "\e[31mLocal image build failed. Fix the error above and re-run the update.\e[0m"
+  exit 1
+fi
 
 # Fix missing SSL, does not overwrite existing files
 [[ ! -d data/assets/ssl ]] && mkdir -p data/assets/ssl
@@ -520,8 +526,8 @@ if [ $? -eq 0 ]; then
   echo '<?php' > data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_VERSION="'$mailcow_git_version'";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_LAST_GIT_VERSION="";' >> data/web/inc/app_info.inc.php
-  echo '  $MAILCOW_GIT_OWNER="mailcow";' >> data/web/inc/app_info.inc.php
-  echo '  $MAILCOW_GIT_REPO="mailcow-dockerized";' >> data/web/inc/app_info.inc.php
+  echo '  $MAILCOW_GIT_OWNER="glazastov";' >> data/web/inc/app_info.inc.php
+  echo '  $MAILCOW_GIT_REPO="mail-encrypted";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_URL="https://github.com/glazastov/mail-encrypted";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_COMMIT="'$mailcow_git_commit'";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_COMMIT_DATE="'$mailcow_git_commit_date'";' >> data/web/inc/app_info.inc.php
@@ -532,8 +538,8 @@ else
   echo '<?php' > data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_VERSION="'$mailcow_git_version'";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_LAST_GIT_VERSION="";' >> data/web/inc/app_info.inc.php
-  echo '  $MAILCOW_GIT_OWNER="mailcow";' >> data/web/inc/app_info.inc.php
-  echo '  $MAILCOW_GIT_REPO="mailcow-dockerized";' >> data/web/inc/app_info.inc.php
+  echo '  $MAILCOW_GIT_OWNER="glazastov";' >> data/web/inc/app_info.inc.php
+  echo '  $MAILCOW_GIT_REPO="mail-encrypted";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_URL="https://github.com/glazastov/mail-encrypted";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_COMMIT="";' >> data/web/inc/app_info.inc.php
   echo '  $MAILCOW_GIT_COMMIT_DATE="";' >> data/web/inc/app_info.inc.php

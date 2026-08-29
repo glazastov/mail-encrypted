@@ -60,7 +60,8 @@ def get_argv_recipients():
 
 def candidates_from_env():
     env_recipients = []
-    for name in ("USER", "USERNAME", "RECIPIENT", "ORIG_RECIPIENT", "SIEVE_USER", "DELIVERED_TO"):
+    for name in ("PGP_STORAGE_RECIPIENT", "USER", "USERNAME", "RECIPIENT",
+                 "ORIG_RECIPIENT", "SIEVE_USER", "DELIVERED_TO"):
         value = os.environ.get(name, "")
         match = re.search(r"[\w.!#$%&'*+/=?^_`{|}~-]+@[\w.-]+", value)
         if match:
@@ -77,6 +78,14 @@ def candidates_from_headers(message):
     return header_recipients
 
 def load_public_key(candidates):
+    # The storage plugin hands the key over directly, so the common path needs
+    # no database access at all. The DB lookup below only matters if this is
+    # invoked some other way.
+    env_key = os.environ.get("PGP_PUBLIC_KEY", "").strip()
+    if env_key:
+        log_debug("load_public_key: using key from environment, key_len=" + str(len(env_key)))
+        return env_key
+
     try:
         import MySQLdb
     except ImportError:

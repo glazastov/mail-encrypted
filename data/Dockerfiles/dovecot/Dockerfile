@@ -136,5 +136,14 @@ COPY quota_notify.py /usr/local/bin/quota_notify.py
 COPY repl_health.sh /usr/local/bin/repl_health.sh
 COPY optimize-fts.sh /usr/local/bin/optimize-fts.sh
 
+COPY pgp-storage-plugin/mail-pgp-storage-plugin.c /tmp/pgp-storage-plugin/
+RUN apk add --no-cache --virtual .pgp-build-deps gcc musl-dev \
+  && gcc -std=gnu11 -fPIC -shared -Wall -Wextra -O2 \
+       -I/usr/include/dovecot -DHAVE_CONFIG_H \
+       -o /usr/lib/dovecot/lib96_mail_pgp_storage_plugin.so \
+       /tmp/pgp-storage-plugin/mail-pgp-storage-plugin.c \
+  && rm -rf /tmp/pgp-storage-plugin \
+  && apk del .pgp-build-deps
+
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

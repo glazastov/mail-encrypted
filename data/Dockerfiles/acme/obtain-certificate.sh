@@ -35,6 +35,14 @@ if [[ -z ${CERT_DOMAINS[*]} ]]; then
   exit 3
 fi
 
+acme_profile_defaults
+if [[ -n "${ACME_PROFILE}" ]]; then
+  log_f "Requesting certificate profile '${ACME_PROFILE}'"
+  PROFILE_ARG="--profile ${ACME_PROFILE}"
+else
+  PROFILE_ARG=""
+fi
+
 if [[ "${LE_STAGING}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   if [[ ! -z "${DIRECTORY_URL}" ]]; then
     log_f "Cannot use DIRECTORY_URL with LE_STAGING=y - ignoring DIRECTORY_URL"
@@ -49,9 +57,9 @@ fi
 if [[ -f ${DOMAINS_FILE} && "$(cat ${DOMAINS_FILE})" ==  "${CERT_DOMAINS[*]}" ]]; then
   if [[ ! -f ${CERT} || ! -f "${KEY}" || -f "${ACME_BASE}/force_renew" ]]; then
     log_f "Certificate ${CERT} doesn't exist yet or forced renewal - start obtaining"
-  # Certificate exists and did not change but could be due for renewal (30 days)
-  elif ! openssl x509 -checkend 2592000 -noout -in ${CERT} > /dev/null; then
-    log_f "Certificate ${CERT} is due for renewal (< 30 days) - start renewing"
+  # Certificate exists and did not change but could be due for renewal
+  elif ! openssl x509 -checkend ${ACME_RENEW_BEFORE} -noout -in ${CERT} > /dev/null; then
+    log_f "Certificate ${CERT} is due for renewal (< ${ACME_RENEW_DAYS} days) - start renewing"
   else
     log_f "Certificate ${CERT} validation done, neither changed nor due for renewal."
     exit 2
@@ -97,8 +105,8 @@ until dig letsencrypt.org +time=3 +tries=1 @unbound > /dev/null; do
   sleep 2
 done
 log_f "Resolver OK"
-log_f "Using command acme-tiny ${DIRECTORY_URL} --account-key ${ACME_BASE}/acme/account.pem --disable-check --csr ${CSR} --acme-dir /var/www/acme/"
-ACME_RESPONSE=$(acme-tiny ${DIRECTORY_URL} \
+log_f "Using command acme-tiny ${DIRECTORY_URL} ${PROFILE_ARG} --account-key ${ACME_BASE}/acme/account.pem --disable-check --csr ${CSR} --acme-dir /var/www/acme/"
+ACME_RESPONSE=$(acme-tiny ${DIRECTORY_URL} ${PROFILE_ARG} \
   --account-key ${ACME_BASE}/acme/account.pem \
   --disable-check \
   --csr ${CSR} \
