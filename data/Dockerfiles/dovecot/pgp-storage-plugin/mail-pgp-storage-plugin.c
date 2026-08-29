@@ -138,9 +138,12 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 	struct istream *filtered;
 	int ret;
 
-	/* Copies and moves carry mail that was already stored under whatever
-	   policy applied at the time; leave them alone. */
-	if (puser == NULL || !puser->enabled || ctx->copying_or_moving)
+	/* ctx->saving marks a message entering the store: an IMAP APPEND, or an
+	   LDA/LMTP delivery, which reaches us through mailbox_save_using_mail()
+	   and therefore has copying_or_moving set as well. A plain copy or move
+	   between folders leaves saving unset - that mail was already stored
+	   under whatever policy applied at the time, so leave it alone. */
+	if (puser == NULL || !puser->enabled || !ctx->saving)
 		return mbox->module_ctx.super.save_begin(ctx, input);
 
 	filtered = pgp_storage_run_filter(box, puser, input);
