@@ -515,6 +515,7 @@
   var unlockedKeys = [];
   var blobUrls = [];
   var lastHandled = "";
+  var failed = {};
   var busy = false;
   var angularInjector = null;
   var trace = [];
@@ -1025,6 +1026,7 @@
         unlockedFromVault(readVault(), state.password)
           .then(function (key) {
             unlockedKeys = [key];
+            failed = {};
             state.password = "";
             $mdDialog.hide(true);
           })
@@ -1195,8 +1197,14 @@
 
   async function handleMessage(message) {
     var token = message.account + "/" + message.folder + "/" + message.uid;
-    if (busy || token === lastHandled) return;
+    var state = {
+      lastHandled: lastHandled,
+      rendered: Boolean(document.querySelector(".mailcow-pgp-message")),
+      failed: failed
+    };
+    if (busy || !core.shouldHandleMessage(token, state)) return;
     busy = true;
+    lastHandled = token;
     clearInPlace();
     try {
       var source = await fetchSource(sourceUrl(message));
@@ -1204,14 +1212,16 @@
         note("message " + token + ": not encrypted");
         return;
       }
-      lastHandled = token;
 
       if (!unlockedKeys.length) {
         if (!readVault()) {
           await showError("noVault");
           return;
         }
-        if (!(await askForPassword())) return;
+        if (!(await askForPassword())) {
+          failed[token] = true;
+          return;
+        }
       }
 
       await showResult(await core.decryptRawSource(source, unlockedKeys, await verificationKeys()));
@@ -1220,6 +1230,7 @@
       note("message " + token + ": " + (error && error.code ? error.code : error));
       if (error && error.code === "fetch-failed") return;
       if (error && error.code === "not-encrypted") return;
+      failed[token] = true;
       await showError((error && error.code) || "decrypt-failed");
     } finally {
       busy = false;
@@ -1245,13 +1256,35 @@
     };
   }
 
+  function fromLocation() {
+    var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
+    if (message) handleMessage(message);
+  }
+
   function observeLocation() {
-    function fromLocation() {
-      var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
-      if (message) handleMessage(message);
-    }
     window.addEventListener("hashchange", fromLocation);
     window.addEventListener("popstate", fromLocation);
+
+    ["pushState", "replaceState"].forEach(function (name) {
+      var original = window.history[name];
+      if (typeof original !== "function") return;
+      window.history[name] = function () {
+        var result = original.apply(this, arguments);
+        window.setTimeout(fromLocation, 0);
+        return result;
+      };
+    });
+
+    var $rootScope = service("$rootScope");
+    if ($rootScope) {
+      $rootScope.$on("$locationChangeSuccess", function () {
+        window.setTimeout(fromLocation, 0);
+      });
+      $rootScope.$on("$stateChangeSuccess", function () {
+        window.setTimeout(fromLocation, 0);
+      });
+    }
+
     fromLocation();
   }
 
@@ -1293,6 +1326,8 @@
 
   function wipeEverything() {
     unlockedKeys = [];
+    failed = {};
+    lastHandled = "";
     releaseBlobUrls();
     clearInPlace();
     try {
