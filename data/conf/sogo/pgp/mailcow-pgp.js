@@ -50,7 +50,19 @@
       continue: "Continue",
       startOver: "Use another key",
       "password-mismatch": "The passwords do not match.",
-      "password-too-short": "Use at least 10 characters."
+      "password-too-short": "Use at least 10 characters.",
+      contactsTitle: "Contact public keys",
+      contactsHint: "Keys used to check the signature of messages you receive. Public keys only.",
+      contactKey: "Public key",
+      addContact: "Add key",
+      noContacts: "No contact keys yet.",
+      contactAdded: "Key added",
+      sigValid: "Signature valid",
+      sigInvalid: "Signature does not match",
+      sigUnknown: "Signed, but no matching contact key",
+      sigNone: "Encrypted, not signed",
+      signedBy: "Signed by",
+      "not-a-public-key": "That is a private key. Only public keys belong here."
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -95,7 +107,19 @@
       continue: "Continuar",
       startOver: "Usar outra chave",
       "password-mismatch": "As senhas não coincidem.",
-      "password-too-short": "Use pelo menos 10 caracteres."
+      "password-too-short": "Use pelo menos 10 caracteres.",
+      contactsTitle: "Chaves públicas dos contatos",
+      contactsHint: "Chaves usadas para verificar a assinatura das mensagens recebidas. Somente chaves públicas.",
+      contactKey: "Chave pública",
+      addContact: "Adicionar chave",
+      noContacts: "Nenhuma chave de contato ainda.",
+      contactAdded: "Chave adicionada",
+      sigValid: "Assinatura válida",
+      sigInvalid: "A assinatura não confere",
+      sigUnknown: "Assinada, mas sem chave de contato correspondente",
+      sigNone: "Criptografada, sem assinatura",
+      signedBy: "Assinada por",
+      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas."
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -140,7 +164,19 @@
       continue: "Continuar",
       startOver: "Usar outra chave",
       "password-mismatch": "As palavras-passe não coincidem.",
-      "password-too-short": "Use pelo menos 10 caracteres."
+      "password-too-short": "Use pelo menos 10 caracteres.",
+      contactsTitle: "Chaves públicas dos contactos",
+      contactsHint: "Chaves usadas para verificar a assinatura das mensagens recebidas. Apenas chaves públicas.",
+      contactKey: "Chave pública",
+      addContact: "Adicionar chave",
+      noContacts: "Ainda não há chaves de contactos.",
+      contactAdded: "Chave adicionada",
+      sigValid: "Assinatura válida",
+      sigInvalid: "A assinatura não corresponde",
+      sigUnknown: "Assinada, mas sem chave de contacto correspondente",
+      sigNone: "Cifrada, sem assinatura",
+      signedBy: "Assinada por",
+      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas."
     },
     de: {
       locked: "PGP gesperrt",
@@ -185,7 +221,19 @@
       continue: "Weiter",
       startOver: "Anderen Schlüssel verwenden",
       "password-mismatch": "Die Passwörter stimmen nicht überein.",
-      "password-too-short": "Mindestens 10 Zeichen verwenden."
+      "password-too-short": "Mindestens 10 Zeichen verwenden.",
+      contactsTitle: "Öffentliche Schlüssel der Kontakte",
+      contactsHint: "Schlüssel zur Prüfung der Signatur eingehender Nachrichten. Nur öffentliche Schlüssel.",
+      contactKey: "Öffentlicher Schlüssel",
+      addContact: "Schlüssel hinzufügen",
+      noContacts: "Noch keine Kontaktschlüssel.",
+      contactAdded: "Schlüssel hinzugefügt",
+      sigValid: "Signatur gültig",
+      sigInvalid: "Signatur stimmt nicht",
+      sigUnknown: "Signiert, aber kein passender Kontaktschlüssel",
+      sigNone: "Verschlüsselt, nicht signiert",
+      signedBy: "Signiert von",
+      "not-a-public-key": "Das ist ein privater Schlüssel. Hier gehören nur öffentliche hin."
     },
     ru: {
       locked: "PGP заблокирован",
@@ -230,13 +278,30 @@
       continue: "Продолжить",
       startOver: "Другой ключ",
       "password-mismatch": "Пароли не совпадают.",
-      "password-too-short": "Используйте не менее 10 символов."
+      "password-too-short": "Используйте не менее 10 символов.",
+      contactsTitle: "Открытые ключи контактов",
+      contactsHint: "Ключи для проверки подписи входящих сообщений. Только открытые ключи.",
+      contactKey: "Открытый ключ",
+      addContact: "Добавить ключ",
+      noContacts: "Ключей контактов пока нет.",
+      contactAdded: "Ключ добавлен",
+      sigValid: "Подпись верна",
+      sigInvalid: "Подпись не совпадает",
+      sigUnknown: "Подписано, но нет подходящего ключа контакта",
+      sigNone: "Зашифровано, без подписи",
+      signedBy: "Подписал",
+      "not-a-public-key": "Это закрытый ключ. Сюда добавляются только открытые."
     }
   };
 
-  var STYLE = ".mailcow-pgp-frame{width:100%;height:60vh;border:0;background:#fff}";
+  var STYLE = [
+    ".mailcow-pgp-frame{width:100%;height:60vh;border:0;background:#fff}",
+    ".mailcow-pgp-sig{display:flex;align-items:center;gap:8px}",
+    ".mailcow-pgp-sig md-icon{margin-right:4px}"
+  ].join("");
 
   var VAULT_PREFIX = "mailcow.pgp.vault.";
+  var CONTACTS_PREFIX = "mailcow.pgp.contacts.";
   var MAX_KEY_BYTES = 512 * 1024;
   var MIN_VAULT_PASSWORD = 10;
   var MESSAGE_URL = /\/Mail\/([^/?#]+)\/([^/?#]+)\/(\d+)(?:\/(?:view|viewsource))?(?:[?#]|$)/;
@@ -299,6 +364,53 @@
     '<div ng-if="pgp.step === \'saved\'" layout="row">',
     '<md-button class="md-raised" ng-click="pgp.reset()">{{ pgp.text.startOver }}</md-button>',
     '<md-button class="md-raised md-warn" ng-click="pgp.forget()">{{ pgp.text.forget }}</md-button>',
+    "</div>",
+    "</div>"
+  ].join("");
+
+
+  var CONTACTS_TEMPLATE = [
+    '<div layout="column" class="mailcow-pgp-contacts">',
+    '<h4 class="md-subhead">{{ pgp.text.contactsTitle }}</h4>',
+    '<div class="md-caption">{{ pgp.text.contactsHint }}</div>',
+    '<div class="md-caption" ng-if="pgp.status" ng-style="{color: pgp.failed ? \'#c62828\' : \'#2e7d32\'}">',
+    "{{ pgp.status }}</div>",
+    '<div class="md-caption" ng-if="!pgp.contacts.length">{{ pgp.text.noContacts }}</div>',
+    '<md-list ng-if="pgp.contacts.length">',
+    '<md-list-item class="md-2-line" ng-repeat="contact in pgp.contacts">',
+    '<div class="md-list-item-text">',
+    "<h3>{{ contact.userIds.join(', ') }}</h3>",
+    "<p>{{ contact.fingerprint }}</p>",
+    "</div>",
+    '<md-button class="md-secondary md-icon-button" ng-click="pgp.removeContact(contact)">',
+    "<md-icon>delete</md-icon></md-button>",
+    "</md-list-item>",
+    "</md-list>",
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.contactKey }}</label>",
+    '<textarea ng-model="pgp.armored" rows="4" spellcheck="false" autocomplete="off"></textarea>',
+    "</md-input-container>",
+    '<div layout="row" layout-align="start center">',
+    '<md-button class="md-raised" ng-click="pgp.pickFile()">{{ pgp.text.keyFile }}</md-button>',
+    '<md-button class="md-raised md-primary" ng-disabled="!pgp.armored"',
+    ' ng-click="pgp.add()">{{ pgp.text.addContact }}</md-button>',
+    '<span class="md-caption">{{ pgp.fileName }}</span>',
+    "</div>",
+    "</div>"
+  ].join("");
+
+  var INPLACE_TEMPLATE = [
+    '<div class="mailcow-pgp-message" layout="column">',
+    '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.signature.color}">',
+    "<md-icon>{{ pgp.signature.icon }}</md-icon>",
+    '<span class="md-body-2">{{ pgp.signature.text }}</span>',
+    '<span class="md-caption" ng-if="pgp.signature.who">&nbsp;- {{ pgp.signature.who }}</span>',
+    "</div>",
+    '<iframe class="mailcow-pgp-frame" sandbox="" referrerpolicy="no-referrer"></iframe>',
+    '<div layout="row" layout-wrap="layout-wrap" ng-if="pgp.attachments.length">',
+    '<md-button class="md-raised" ng-repeat="file in pgp.attachments"',
+    ' ng-href="{{ file.url }}" download="{{ file.filename }}">',
+    "<md-icon>attachment</md-icon> {{ file.filename }}</md-button>",
     "</div>",
     "</div>"
   ].join("");
@@ -417,6 +529,63 @@
     } catch (error) {
       return false;
     }
+  }
+
+  function contactsKey() {
+    return CONTACTS_PREFIX + (window.UserLogin || "");
+  }
+
+  function readContacts() {
+    try {
+      var stored = JSON.parse(window.localStorage.getItem(contactsKey()) || "[]");
+      return Array.isArray(stored) ? stored : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeContacts(contacts) {
+    try {
+      window.localStorage.setItem(contactsKey(), JSON.stringify(contacts));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async function verificationKeys() {
+    var contacts = readContacts();
+    var parsed = [];
+    for (var index = 0; index < contacts.length; index++) {
+      try {
+        parsed.push(await window.openpgp.readKey({ armoredKey: contacts[index].armored }));
+      } catch (error) {
+        note("contact key unreadable: " + contacts[index].fingerprint);
+      }
+    }
+    return parsed;
+  }
+
+  function describeSignature(signature) {
+    var byStatus = {
+      valid: { icon: "verified_user", color: "#2e7d32", text: label("sigValid") },
+      invalid: { icon: "report_problem", color: "#c62828", text: label("sigInvalid") },
+      "unknown-key": { icon: "help_outline", color: "#ef6c00", text: label("sigUnknown") },
+      none: { icon: "lock", color: "#616161", text: label("sigNone") }
+    };
+    var described = byStatus[signature.status] || byStatus.none;
+    var who = "";
+    if (signature.status === "valid" && signature.userIds && signature.userIds.length) {
+      who = label("signedBy") + " " + signature.userIds.join(", ");
+    } else if (signature.keyId) {
+      who = signature.keyId;
+    }
+    return {
+      icon: described.icon,
+      color: described.color,
+      text: described.text,
+      who: who
+    };
   }
 
   function releaseBlobUrls() {
@@ -596,10 +765,114 @@
     note("preferences: panel installed");
   }
 
+  function buildContacts(host) {
+    if (host.querySelector(".mailcow-pgp-contacts")) return;
+
+    var $compile = service("$compile");
+    var $rootScope = service("$rootScope");
+    if (!$compile || !$rootScope) return;
+
+    var picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = ".asc,.key,.gpg,.pgp,application/pgp-keys,text/plain";
+    picker.style.display = "none";
+    document.body.appendChild(picker);
+
+    var scope = $rootScope.$new(true);
+
+    function fail(error) {
+      scope.pgp.failed = true;
+      scope.pgp.status = label(error && error.code) || String((error && error.message) || error);
+      scope.$applyAsync();
+    }
+
+    scope.pgp = {
+      text: labels,
+      contacts: readContacts(),
+      armored: "",
+      fileName: "",
+      status: "",
+      failed: false,
+
+      pickFile: function () {
+        picker.click();
+      },
+
+      add: function () {
+        var state = scope.pgp;
+        state.failed = false;
+        core
+          .readPublicKeys(state.armored)
+          .then(function (found) {
+            var contacts = readContacts();
+            found.forEach(function (key) {
+              var existing = contacts.filter(function (contact) {
+                return contact.fingerprint === key.fingerprint;
+              })[0];
+              if (existing) {
+                existing.armored = key.armored;
+                existing.userIds = key.userIds;
+              } else {
+                contacts.push(key);
+              }
+            });
+            if (!writeContacts(contacts)) throw { code: "bad-vault" };
+            state.contacts = contacts;
+            state.armored = "";
+            state.fileName = "";
+            state.status = label("contactAdded");
+            scope.$applyAsync();
+          })
+          .catch(fail);
+      },
+
+      removeContact: function (contact) {
+        var contacts = readContacts().filter(function (item) {
+          return item.fingerprint !== contact.fingerprint;
+        });
+        writeContacts(contacts);
+        scope.pgp.contacts = contacts;
+        scope.pgp.status = "";
+        scope.pgp.failed = false;
+      }
+    };
+
+    picker.addEventListener("change", function () {
+      var file = picker.files && picker.files[0];
+      if (!file) return;
+      if (file.size > MAX_KEY_BYTES) {
+        picker.value = "";
+        fail({ code: "file-too-large" });
+        return;
+      }
+      file
+        .text()
+        .then(function (content) {
+          scope.pgp.armored = content;
+          scope.pgp.fileName = file.name;
+          scope.pgp.failed = false;
+          scope.pgp.status = "";
+          scope.$applyAsync();
+        })
+        .catch(function () {
+          fail({ code: "file-failed" });
+        })
+        .then(function () {
+          picker.value = "";
+        });
+    });
+
+    var compiled = $compile(window.angular.element(CONTACTS_TEMPLATE))(scope);
+    host.appendChild(compiled[0]);
+    scope.$applyAsync();
+    note("preferences: contacts panel installed");
+  }
+
   function waitForPreferences() {
     var host = document.querySelector(PREFS_HOST);
     if (host) {
       buildPreferences(host);
+      buildContacts(host);
       return;
     }
     var observer = new MutationObserver(function () {
@@ -607,6 +880,7 @@
       if (!target) return;
       observer.disconnect();
       buildPreferences(target);
+      buildContacts(target);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
@@ -713,18 +987,65 @@
     );
   }
 
-  function showResult(result) {
-    releaseBlobUrls();
-    var attachments = result.attachments.map(function (attachment) {
+  function attachmentLinks(result) {
+    return result.attachments.map(function (attachment) {
       var url = URL.createObjectURL(new Blob([attachment.content], { type: attachment.mimeType }));
       blobUrls.push(url);
       return { filename: attachment.filename, url: url };
     });
+  }
+
+  function clearInPlace() {
+    var previous = document.querySelector(".mailcow-pgp-message");
+    if (previous) previous.remove();
+    Array.prototype.forEach.call(
+      document.querySelectorAll("[data-mailcow-pgp-hidden]"),
+      function (node) {
+        node.hidden = false;
+        node.removeAttribute("data-mailcow-pgp-hidden");
+      }
+    );
+  }
+
+  function renderInPlace(result) {
+    var body = document.querySelector("div.msg-body");
+    var $compile = service("$compile");
+    var $rootScope = service("$rootScope");
+    if (!body || !$compile || !$rootScope) return false;
+
+    clearInPlace();
+
+    Array.prototype.forEach.call(body.children, function (child) {
+      child.hidden = true;
+      child.setAttribute("data-mailcow-pgp-hidden", "1");
+    });
+
+    var scope = $rootScope.$new(true);
+    scope.pgp = {
+      text: labels,
+      signature: describeSignature(result.signature || { status: "none" }),
+      attachments: attachmentLinks(result)
+    };
+
+    var srcdoc = frameDocument(result);
+    var compiled = $compile(window.angular.element(INPLACE_TEMPLATE))(scope);
+    body.appendChild(compiled[0]);
+    scope.$applyAsync();
+
+    var frame = compiled[0].querySelector(".mailcow-pgp-frame");
+    if (frame) frame.setAttribute("srcdoc", srcdoc);
+    note("rendered in place");
+    return true;
+  }
+
+  function showResult(result) {
+    releaseBlobUrls();
+    if (renderInPlace(result)) return Promise.resolve();
 
     return showDialog(MESSAGE_TEMPLATE, {
       text: labels,
       subject: result.subject || label("noSubject"),
-      attachments: attachments,
+      attachments: attachmentLinks(result),
       srcdoc: frameDocument(result)
     }).then(function () {
       releaseBlobUrls();
@@ -739,6 +1060,7 @@
     var token = message.account + "/" + message.folder + "/" + message.uid;
     if (busy || token === lastHandled) return;
     busy = true;
+    clearInPlace();
     try {
       var source = await fetchSource(sourceUrl(message));
       if (!core.isEncryptedSource(source)) {
@@ -755,7 +1077,7 @@
         if (!(await askForPassword())) return;
       }
 
-      await showResult(await core.decryptRawSource(source, unlockedKeys));
+      await showResult(await core.decryptRawSource(source, unlockedKeys, await verificationKeys()));
       note("message " + token + ": shown");
     } catch (error) {
       note("message " + token + ": " + (error && error.code ? error.code : error));

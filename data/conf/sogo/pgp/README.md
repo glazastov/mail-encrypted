@@ -13,7 +13,7 @@ holding nothing but the mailbox's public key.
 | `mailcow-postal-mime.min.js` | postal-mime 3.0.0, bundled to IIFE (MIT-0). Defines `MailcowPostalMime`. |
 | `mailcow-pgp-vault.js` | Seals the private key with AES-256-GCM under a PBKDF2-SHA256 key (600k iterations). |
 | `mailcow-pgp-core.js` | Armor extraction, key unlocking, decryption and MIME parsing. No DOM access, so it is unit tested outside the browser. |
-| `mailcow-pgp.js` | SOGo integration: the preferences panel, message detection and the reading overlay. |
+| `mailcow-pgp.js` | SOGo integration: the preferences panels, message detection and in-place rendering. |
 
 They are registered in `data/conf/sogo/sogo.conf` under
 `SOGoUIAdditionalJSFiles` and bind mounted into the container's
@@ -27,9 +27,20 @@ The reading path is:
    RFC822 message. SOGo HTML-escapes that response, which the core reverses.
 3. The `-----BEGIN PGP MESSAGE-----` block is decrypted with the key the user
    unlocked, and the resulting MIME is parsed for its body and attachments.
-4. The body is rendered inside a `sandbox=""` iframe with a CSP that permits
-   only inline styles and `data:` images, so remote trackers do not load and no
-   script in a message can run.
+4. The body replaces SOGo's own `div.msg-body` content, inside a `sandbox=""`
+   iframe with a CSP that permits only inline styles and `data:` images, so
+   remote trackers do not load and no script in a message can run. A banner
+   above it reports the signature.
+
+## Signatures and contact keys
+
+Contact public keys are added in the same preferences page and kept as plain
+JSON in `localStorage` - they are public, so nothing is gained by sealing them,
+and a pasted *private* key is refused outright rather than stored there.
+
+The banner distinguishes four outcomes: a good signature from a known contact,
+a signature that does not match, a signature with no matching contact key, and
+a message that carries no signature at all. Only the first is shown as valid.
 
 ## Where the private key lives
 
