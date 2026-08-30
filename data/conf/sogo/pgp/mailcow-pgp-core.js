@@ -49,6 +49,61 @@
       return match ? match[0] : null;
     }
 
+    function extractAddress(text) {
+      var value = String(text === null || text === undefined ? "" : text);
+      var angled = /<([^>]+)>/.exec(value);
+      var candidate = (angled ? angled[1] : value).trim().toLowerCase();
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate) ? candidate : "";
+    }
+
+    function keysForRecipients(recipients, contacts) {
+      var found = [];
+      var missing = [];
+      var seen = {};
+
+      (recipients || []).forEach(function (recipient) {
+        var address = extractAddress(recipient);
+        if (!address) return;
+
+        var match = (contacts || []).filter(function (contact) {
+          return (contact.userIds || []).some(function (userId) {
+            return extractAddress(userId) === address;
+          });
+        })[0];
+
+        if (!match) {
+          if (missing.indexOf(address) === -1) missing.push(address);
+          return;
+        }
+        if (seen[match.fingerprint]) return;
+        seen[match.fingerprint] = true;
+        found.push(match);
+      });
+
+      return { found: found, missing: missing };
+    }
+
+    async function signText(text, privateKey) {
+      if (!privateKey) throw fail("no-key", "no private key to sign with");
+      return openpgp.sign({
+        message: await openpgp.createCleartextMessage({ text: String(text) }),
+        signingKeys: privateKey,
+        format: "armored"
+      });
+    }
+
+    async function encryptText(text, recipientKeys, signingKey) {
+      if (!recipientKeys || !recipientKeys.length) {
+        throw fail("no-recipient", "no recipient key to encrypt to");
+      }
+      return openpgp.encrypt({
+        message: await openpgp.createMessage({ text: String(text) }),
+        encryptionKeys: recipientKeys,
+        signingKeys: signingKey || undefined,
+        format: "armored"
+      });
+    }
+
     function isObscuredSubject(text) {
       var value = String(text === null || text === undefined ? "" : text).trim();
       return value === "" || value === OBSCURED_SUBJECT;
@@ -346,6 +401,10 @@
       pickUserId: pickUserId,
       soFolder: soFolder,
       isObscuredSubject: isObscuredSubject,
+      extractAddress: extractAddress,
+      keysForRecipients: keysForRecipients,
+      signText: signText,
+      encryptText: encryptText,
       createCache: createCache,
       shouldHandleMessage: shouldHandleMessage,
       findSenderKeys: findSenderKeys,

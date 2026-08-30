@@ -596,3 +596,108 @@ describe("the obscured subject marker", () => {
     expect(result.subject).toBe("Assunto real");
   });
 });
+
+describe("addressing outgoing mail", () => {
+  test("pulls the address out of a display name", () => {
+    expect(core.extractAddress("Ana Silva <ana@example.org>")).toBe("ana@example.org");
+  });
+
+  test("accepts a bare address", () => {
+    expect(core.extractAddress("ana@example.org")).toBe("ana@example.org");
+  });
+
+  test("normalises case and spacing", () => {
+    expect(core.extractAddress("  <ANA@Example.ORG> ")).toBe("ana@example.org");
+  });
+
+  test("returns nothing for junk", () => {
+    expect(core.extractAddress("not an address")).toBe("");
+    expect(core.extractAddress(null)).toBe("");
+  });
+
+  test("matches recipients against the contact list", () => {
+    const contacts = [
+      { armored: "A", fingerprint: "f1", userIds: ["Ana <ana@example.org>"] },
+      { armored: "B", fingerprint: "f2", userIds: ["Bo <bo@example.org>", "Bo <bo@other.org>"] },
+    ];
+    const result = core.keysForRecipients(["Ana <ana@example.org>", "bo@other.org"], contacts);
+
+    expect(result.missing).toHaveLength(0);
+    expect(result.found.map((entry) => entry.fingerprint).sort()).toEqual(["f1", "f2"]);
+  });
+
+  test("reports recipients with no key", () => {
+    const contacts = [{ armored: "A", fingerprint: "f1", userIds: ["Ana <ana@example.org>"] }];
+    const result = core.keysForRecipients(["ana@example.org", "zoe@example.org"], contacts);
+
+    expect(result.missing).toEqual(["zoe@example.org"]);
+    expect(result.found).toHaveLength(1);
+  });
+
+  test("never returns the same key twice", () => {
+    const contacts = [
+      { armored: "B", fingerprint: "f2", userIds: ["Bo <bo@example.org>", "Bo <bo@other.org>"] },
+    ];
+    const result = core.keysForRecipients(["bo@example.org", "bo@other.org"], contacts);
+    expect(result.found).toHaveLength(1);
+  });
+});
+
+describe("signing and encrypting outgoing mail", () => {
+  test("signs text so the signature can be checked", async () => {
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const signed = await core.signText("mensagem em claro", key);
+
+    expect(signed).toStartWith("-----BEGIN PGP SIGNED MESSAGE-----");
+    expect(signed).toInclude("mensagem em claro");
+
+    const verified = await openpgp.verify({
+      message: await openpgp.readCleartextMessage({ cleartextMessage: signed }),
+      verificationKeys: keys.publicKey,
+    });
+    expect(await verified.signatures[0].verified).toBe(true);
+  });
+
+  test("encrypts text only the recipient can read", async () => {
+    const recipient = await openpgp.generateKey({
+      userIDs: [{ email: "ana@example.org" }],
+      format: "object",
+    });
+    const armored = await core.encryptText("segredo", [recipient.publicKey], null);
+
+    expect(armored).toStartWith("-----BEGIN PGP MESSAGE-----");
+    expect(armored).not.toInclude("segredo");
+
+    const opened = await openpgp.decrypt({
+      message: await openpgp.readMessage({ armoredMessage: armored }),
+      decryptionKeys: recipient.privateKey,
+    });
+    expect(opened.data).toBe("segredo");
+  });
+
+  test("signs while encrypting when a signing key is given", async () => {
+    const recipient = await openpgp.generateKey({
+      userIDs: [{ email: "ana@example.org" }],
+      format: "object",
+    });
+    const signing = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const armored = await core.encryptText("segredo", [recipient.publicKey], signing);
+
+    const opened = await openpgp.decrypt({
+      message: await openpgp.readMessage({ armoredMessage: armored }),
+      decryptionKeys: recipient.privateKey,
+      verificationKeys: keys.publicKey,
+    });
+    expect(await opened.signatures[0].verified).toBe(true);
+  });
+
+  test("refuses to encrypt to nobody", async () => {
+    await expect(core.encryptText("segredo", [], null)).rejects.toMatchObject({
+      code: "no-recipient",
+    });
+  });
+
+  test("refuses to sign without a key", async () => {
+    await expect(core.signText("texto", null)).rejects.toMatchObject({ code: "no-key" });
+  });
+});
