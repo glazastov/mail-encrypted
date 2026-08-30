@@ -8,6 +8,17 @@
   "use strict";
 
   var OBSCURED_SUBJECT = "[...]";
+  var RENDERABLE = [
+    "text/html",
+    "application/xhtml+xml",
+    "image/svg+xml",
+    "application/xml",
+    "text/xml",
+    "text/javascript",
+    "application/javascript",
+    "application/ecmascript",
+    "text/ecmascript"
+  ];
   var ARMOR = /-----BEGIN PGP MESSAGE-----[\s\S]*?-----END PGP MESSAGE-----/;
   var STORAGE_MARKER = /^x-mailcow-pgp-storage:\s*encrypted/im;
   var PGP_MIME = /^content-type:\s*multipart\/encrypted[\s\S]{0,400}?application\/pgp-encrypted/im;
@@ -146,20 +157,31 @@
       };
     }
 
-    function pickUserId(userIds, address) {
-      var list = userIds || [];
-      if (!list.length) return "";
-
+    function userIdMatches(userIds, address) {
       var wanted = String(address || "").trim().toLowerCase();
-      if (!wanted) return list[0];
+      if (!wanted) return null;
+      return (userIds || []).filter(function (userId) {
+        return extractAddress(userId) === wanted;
+      })[0] || null;
+    }
 
-      var matched = list.filter(function (userId) {
-        var found = /<([^>]+)>/.exec(userId);
-        var email = found ? found[1] : userId;
-        return String(email).trim().toLowerCase() === wanted;
-      })[0];
+    function pickUserId(userIds, address) {
+      return userIdMatches(userIds, address) || "";
+    }
 
-      return matched || list[0];
+    function signatureMatchesSender(signature, from) {
+      if (!signature || signature.status !== "valid") return false;
+      if (!from || !from.address) return false;
+      return Boolean(userIdMatches(signature.userIds, from.address));
+    }
+
+    function safeAttachmentType(type) {
+      var value = String(type || "").split(";")[0].trim().toLowerCase();
+      if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(value)) {
+        return "application/octet-stream";
+      }
+      if (RENDERABLE.indexOf(value) !== -1) return "application/octet-stream";
+      return value;
     }
 
     function shouldHandleMessage(token, state) {
@@ -177,6 +199,9 @@
     }
 
     async function findSenderKeys(parsed) {
+      var sender = parsed.from && parsed.from.address ? parsed.from.address : "";
+      if (!sender) return [];
+
       var candidates = [];
 
       (parsed.attachments || []).forEach(function (attachment) {
@@ -201,10 +226,12 @@
           } else {
             key = await openpgp.readKey({ binaryKey: fromBase64(candidate.base64) });
           }
+          var userIds = key.getUserIDs();
+          if (!userIdMatches(userIds, sender)) continue;
           found.push({
             armored: key.toPublic().armor(),
             fingerprint: key.getFingerprint(),
-            userIds: key.getUserIDs()
+            userIds: userIds
           });
         } catch (error) {
           continue;
@@ -399,6 +426,8 @@
       isEncryptedSource: isEncryptedSource,
       classifySource: classifySource,
       pickUserId: pickUserId,
+      signatureMatchesSender: signatureMatchesSender,
+      safeAttachmentType: safeAttachmentType,
       soFolder: soFolder,
       isObscuredSubject: isObscuredSubject,
       extractAddress: extractAddress,
