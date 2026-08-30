@@ -206,3 +206,35 @@ describe("failure modes", () => {
     await expect(core.decryptRawSource(raw, [])).rejects.toMatchObject({ code: "no-key" });
   });
 });
+
+describe("inspecting a key before it is stored", () => {
+  test("reports that a protected key needs its passphrase", async () => {
+    const report = await core.inspectPrivateKey(keys.armoredPrivateKey);
+    expect(report.needsPassphrase).toBe(true);
+    expect(report.fingerprint).toMatch(/^[0-9a-f]{40}$/);
+    expect(report.userIds).toContain("Test <test@example.org>");
+  });
+
+  test("reports that an unprotected key needs none", async () => {
+    const bare = await openpgp.generateKey({
+      userIDs: [{ email: "bare@example.org" }],
+      format: "armored",
+    });
+    const report = await core.inspectPrivateKey(bare.privateKey);
+    expect(report.needsPassphrase).toBe(false);
+  });
+
+  test("refuses a public key", async () => {
+    const generated = await openpgp.generateKey({
+      userIDs: [{ email: "pub@example.org" }],
+      format: "armored",
+    });
+    await expect(core.inspectPrivateKey(generated.publicKey)).rejects.toMatchObject({
+      code: "bad-key",
+    });
+  });
+
+  test("refuses something that is not a key", async () => {
+    await expect(core.inspectPrivateKey("hello")).rejects.toMatchObject({ code: "bad-key" });
+  });
+});

@@ -46,6 +46,21 @@
       );
     }
 
+    async function inspectPrivateKey(armoredKey) {
+      var key;
+      try {
+        key = await openpgp.readPrivateKey({ armoredKey: String(armoredKey) });
+      } catch (cause) {
+        throw fail("bad-key", "not a usable OpenPGP private key", cause);
+      }
+
+      return {
+        needsPassphrase: !key.isDecrypted(),
+        fingerprint: key.getFingerprint(),
+        userIds: key.getUserIDs()
+      };
+    }
+
     async function unlockPrivateKey(armoredKey, passphrase) {
       var key;
       try {
@@ -141,6 +156,7 @@
       unescapeSource: unescapeSource,
       findArmoredMessage: findArmoredMessage,
       isEncryptedSource: isEncryptedSource,
+      inspectPrivateKey: inspectPrivateKey,
       unlockPrivateKey: unlockPrivateKey,
       decryptRawSource: decryptRawSource,
       parseMime: parseMime,
