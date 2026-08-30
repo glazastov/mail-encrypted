@@ -97,3 +97,69 @@ describe("opening", () => {
     });
   });
 });
+
+describe("wiping stored material", () => {
+  function fakeStorage(initial) {
+    const data = new Map(Object.entries(initial));
+    const log = [];
+    return {
+      log,
+      data,
+      getItem: (key) => (data.has(key) ? data.get(key) : null),
+      setItem: (key, value) => {
+        log.push(["set", key, value]);
+        data.set(key, value);
+      },
+      removeItem: (key) => {
+        log.push(["remove", key]);
+        data.delete(key);
+      },
+    };
+  }
+
+  test("overwrites a value before removing it", () => {
+    const storage = fakeStorage({ secret: "the original key material" });
+    vault.wipe(storage, ["secret"]);
+
+    const sets = storage.log.filter(([op]) => op === "set");
+    const removes = storage.log.filter(([op]) => op === "remove");
+
+    expect(sets.length).toBeGreaterThan(0);
+    expect(removes).toHaveLength(1);
+    expect(storage.log.indexOf(sets[sets.length - 1])).toBeLessThan(storage.log.indexOf(removes[0]));
+    sets.forEach(([, , value]) => expect(value).not.toInclude("original"));
+  });
+
+  test("leaves nothing behind", () => {
+    const storage = fakeStorage({ secret: "x", other: "y" });
+    vault.wipe(storage, ["secret"]);
+    expect(storage.getItem("secret")).toBeNull();
+    expect(storage.getItem("other")).toBe("y");
+  });
+
+  test("overwrites with at least as much data as it replaces", () => {
+    const original = "k".repeat(500);
+    const storage = fakeStorage({ secret: original });
+    vault.wipe(storage, ["secret"]);
+    const sets = storage.log.filter(([op]) => op === "set");
+    sets.forEach(([, , value]) => expect(value.length).toBeGreaterThanOrEqual(original.length));
+  });
+
+  test("reports how many entries it cleared", () => {
+    const storage = fakeStorage({ a: "1", b: "2" });
+    expect(vault.wipe(storage, ["a", "b", "missing"])).toBe(2);
+  });
+
+  test("survives a storage that refuses to be written", () => {
+    const storage = {
+      getItem: () => "value",
+      setItem: () => {
+        throw new Error("denied");
+      },
+      removeItem: () => {
+        throw new Error("denied");
+      },
+    };
+    expect(() => vault.wipe(storage, ["secret"])).not.toThrow();
+  });
+});
