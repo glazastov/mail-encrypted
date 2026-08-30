@@ -212,3 +212,80 @@ describe("identity display must not borrow an unrelated identity", () => {
     expect(core.pickUserId(["Ana <ana@example.org>"], null)).toBe("");
   });
 });
+
+describe("the sender of a genuine end to end message", () => {
+  async function e2eeMessage(payload, outerFrom, signingKey) {
+    const suffix = Math.random().toString(36).slice(2);
+    const payloadPath = join(workdir, "payload-" + suffix + ".eml");
+    writeFileSync(payloadPath, payload);
+
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({
+        binary: new Uint8Array(Buffer.from(payload, "utf8")),
+      }),
+      encryptionKeys: mine.publicKey,
+      signingKeys: signingKey,
+      format: "armored",
+    });
+
+    const outerPath = join(workdir, "outer-" + suffix + ".eml");
+    writeFileSync(outerPath, "From: " + outerFrom + "\nTo: eu@example.org\nSubject: E2EE\n\n");
+    const armorPath = join(workdir, "armor-" + suffix + ".asc");
+    writeFileSync(armorPath, armored);
+
+    return buildWithFilter("wrap", [outerPath, armorPath])
+      .toString("utf8")
+      .replace(/^X-Mailcow-PGP-Storage:.*\r?\n/im, "");
+  }
+
+  test("comes from the outer headers when the payload carries none", async () => {
+    const ana = await openpgp.generateKey({
+      userIDs: [{ name: "Ana", email: "ana@example.org" }],
+      format: "object",
+    });
+
+    const raw = await e2eeMessage(
+      'Content-Type: text/plain; charset="utf-8"\n\nmensagem cifrada pelo remetente\n',
+      "Ana <ana@example.org>",
+      ana.privateKey
+    );
+
+    const key = await core.unlockPrivateKey(mine.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key], [ana.publicKey]);
+
+    expect(result.encryption).toBe("end-to-end");
+    expect(result.from.address).toBe("ana@example.org");
+    expect(core.signatureMatchesSender(result.signature, result.from)).toBe(true);
+  });
+
+  test("the payload's own sender still wins when it has one", async () => {
+    const ana = await openpgp.generateKey({
+      userIDs: [{ name: "Ana", email: "ana@example.org" }],
+      format: "object",
+    });
+
+    const raw = await e2eeMessage(
+      'From: Ana <ana@example.org>\nContent-Type: text/plain; charset="utf-8"\n\ncorpo\n',
+      "quemquer@evil.example",
+      ana.privateKey
+    );
+
+    const key = await core.unlockPrivateKey(mine.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key], [ana.publicKey]);
+
+    expect(result.from.address).toBe("ana@example.org");
+  });
+
+  test("reads a folded outer From header", () => {
+    const raw = "Subject: x\nFrom: Ana\n  Silva\n <ana@example.org>\nTo: b@c.d\n\nbody\n";
+    expect(core.outerSender(raw).address).toBe("ana@example.org");
+  });
+
+  test("returns nothing when there is no outer sender", () => {
+    expect(core.outerSender("Subject: x\n\nbody\n")).toBeNull();
+  });
+
+  test("does not read a From line out of the body", () => {
+    expect(core.outerSender("Subject: x\n\nFrom: fake@evil.example\n")).toBeNull();
+  });
+});

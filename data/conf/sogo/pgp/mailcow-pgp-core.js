@@ -157,6 +157,33 @@
       };
     }
 
+    function outerSender(rawSource) {
+      var source = unescapeSource(rawSource);
+      var separator = source.search(/\r?\n\r?\n/);
+      var head = separator === -1 ? source : source.slice(0, separator);
+      var lines = head.split(/\r?\n/);
+
+      var value = null;
+      for (var index = 0; index < lines.length; index++) {
+        if (!/^from:/i.test(lines[index])) continue;
+        value = lines[index].slice(lines[index].indexOf(":") + 1);
+        while (index + 1 < lines.length && /^[ \t]/.test(lines[index + 1])) {
+          value += " " + lines[index + 1].trim();
+          index++;
+        }
+        break;
+      }
+      if (!value) return null;
+
+      var address = extractAddress(value);
+      if (!address) return null;
+
+      return {
+        name: value.replace(/<[^>]*>/, "").trim().replace(/^"|"$/g, ""),
+        address: address
+      };
+    }
+
     function userIdMatches(userIds, address) {
       var wanted = String(address || "").trim().toLowerCase();
       if (!wanted) return null;
@@ -387,6 +414,11 @@
       }
 
       var parsed = await parseMime(decrypted.data);
+      // A message the sender encrypted usually carries no headers inside the
+      // payload; the address the reader is shown lives on the outside.
+      if (!parsed.from || !parsed.from.address) {
+        parsed.from = outerSender(rawSource);
+      }
       parsed.signature = await describeSignatures(decrypted.signatures, verificationKeys);
       parsed.encryption = classifySource(rawSource);
       return parsed;
@@ -426,6 +458,7 @@
       isEncryptedSource: isEncryptedSource,
       classifySource: classifySource,
       pickUserId: pickUserId,
+      outerSender: outerSender,
       signatureMatchesSender: signatureMatchesSender,
       safeAttachmentType: safeAttachmentType,
       soFolder: soFolder,
