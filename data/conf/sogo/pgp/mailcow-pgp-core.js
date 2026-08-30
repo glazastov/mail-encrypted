@@ -46,6 +46,38 @@
       );
     }
 
+    async function readPublicKeys(armored) {
+      var text = String(armored);
+      if (/-----BEGIN PGP PRIVATE KEY BLOCK-----/.test(text)) {
+        throw fail("not-a-public-key", "that is a private key, not a contact key");
+      }
+
+      var blocks = text.match(
+        /-----BEGIN PGP PUBLIC KEY BLOCK-----[\s\S]*?-----END PGP PUBLIC KEY BLOCK-----/g
+      ) || [text];
+
+      var parsed = [];
+      for (var index = 0; index < blocks.length; index++) {
+        try {
+          var batch = await openpgp.readKeys({ armoredKeys: blocks[index] });
+          parsed = parsed.concat(batch);
+        } catch (cause) {
+          throw fail("bad-key", "not a usable OpenPGP public key", cause);
+        }
+      }
+      if (!parsed.length) {
+        throw fail("bad-key", "no key found");
+      }
+
+      return parsed.map(function (key) {
+        return {
+          armored: key.toPublic().armor(),
+          fingerprint: key.getFingerprint(),
+          userIds: key.getUserIDs()
+        };
+      });
+    }
+
     async function inspectPrivateKey(armoredKey) {
       var key;
       try {
@@ -92,7 +124,34 @@
       });
     }
 
-    async function decryptRawSource(rawSource, privateKeys) {
+    async function describeSignatures(signatures, verificationKeys) {
+      if (!signatures || !signatures.length) {
+        return { status: "none" };
+      }
+
+      var first = signatures[0];
+      var keyId = first.keyID ? first.keyID.toHex() : "";
+      var known = (verificationKeys || []).filter(function (key) {
+        return key.getKeys().some(function (subkey) {
+          return subkey.getKeyID().toHex() === keyId;
+        });
+      })[0];
+
+      try {
+        await first.verified;
+      } catch (cause) {
+        return { status: known ? "invalid" : "unknown-key", keyId: keyId };
+      }
+
+      return {
+        status: "valid",
+        keyId: keyId,
+        fingerprint: known ? known.getFingerprint() : "",
+        userIds: known ? known.getUserIDs() : []
+      };
+    }
+
+    async function decryptRawSource(rawSource, privateKeys, verificationKeys) {
       if (!privateKeys || !privateKeys.length) {
         throw fail("no-key", "no private key is available in this browser");
       }
@@ -118,13 +177,17 @@
         decrypted = await openpgp.decrypt({
           message: message,
           decryptionKeys: privateKeys,
+          verificationKeys: (verificationKeys && verificationKeys.length) ? verificationKeys : undefined,
+          expectSigned: false,
           format: "binary",
         });
       } catch (cause) {
         throw fail("decrypt-failed", "the message could not be decrypted", cause);
       }
 
-      return parseMime(decrypted.data);
+      var parsed = await parseMime(decrypted.data);
+      parsed.signature = await describeSignatures(decrypted.signatures, verificationKeys);
+      return parsed;
     }
 
     async function parseMime(bytes) {
@@ -156,6 +219,7 @@
       unescapeSource: unescapeSource,
       findArmoredMessage: findArmoredMessage,
       isEncryptedSource: isEncryptedSource,
+      readPublicKeys: readPublicKeys,
       inspectPrivateKey: inspectPrivateKey,
       unlockPrivateKey: unlockPrivateKey,
       decryptRawSource: decryptRawSource,

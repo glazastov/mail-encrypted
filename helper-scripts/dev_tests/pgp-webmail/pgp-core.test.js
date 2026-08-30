@@ -238,3 +238,92 @@ describe("inspecting a key before it is stored", () => {
     await expect(core.inspectPrivateKey("hello")).rejects.toMatchObject({ code: "bad-key" });
   });
 });
+
+describe("contact public keys", () => {
+  test("reads one armored public key", async () => {
+    const generated = await openpgp.generateKey({
+      userIDs: [{ name: "Ana", email: "ana@example.org" }],
+      format: "armored",
+    });
+    const read = await core.readPublicKeys(generated.publicKey);
+    expect(read).toHaveLength(1);
+    expect(read[0].userIds).toContain("Ana <ana@example.org>");
+    expect(read[0].fingerprint).toMatch(/^[0-9a-f]{40}$/);
+    expect(read[0].armored).toStartWith("-----BEGIN PGP PUBLIC KEY BLOCK-----");
+  });
+
+  test("reads several keys pasted together", async () => {
+    const one = await openpgp.generateKey({ userIDs: [{ email: "a@x.org" }], format: "armored" });
+    const two = await openpgp.generateKey({ userIDs: [{ email: "b@x.org" }], format: "armored" });
+    const read = await core.readPublicKeys(one.publicKey + "\n" + two.publicKey);
+    expect(read).toHaveLength(2);
+  });
+
+  test("refuses a private key so it is never stored unprotected", async () => {
+    await expect(core.readPublicKeys(keys.armoredPrivateKey)).rejects.toMatchObject({
+      code: "not-a-public-key",
+    });
+  });
+
+  test("refuses something that is not a key", async () => {
+    await expect(core.readPublicKeys("hello")).rejects.toMatchObject({ code: "bad-key" });
+  });
+});
+
+describe("signature verification", () => {
+  async function signedMessage(signingKey) {
+    const plainPath = join(workdir, `signed-${Math.random().toString(36).slice(2)}.eml`);
+    writeFileSync(plainPath, "From: a@b.c\nSubject: Signed\n\nassinado\n");
+    const protectedPayload = buildWithFilter("protect", [plainPath]);
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({ binary: new Uint8Array(protectedPayload) }),
+      encryptionKeys: keys.publicKey,
+      signingKeys: signingKey,
+      format: "armored",
+    });
+    const armorPath = join(workdir, `signed-${Math.random().toString(36).slice(2)}.asc`);
+    writeFileSync(armorPath, armored);
+    return buildWithFilter("wrap", [plainPath, armorPath]).toString("utf8");
+  }
+
+  test("reports a good signature from a known contact", async () => {
+    const signer = await openpgp.generateKey({
+      userIDs: [{ name: "Bo", email: "bo@example.org" }],
+      format: "object",
+    });
+    const raw = await signedMessage(signer.privateKey);
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key], [signer.publicKey]);
+
+    expect(result.signature.status).toBe("valid");
+    expect(result.signature.userIds).toContain("Bo <bo@example.org>");
+  });
+
+  test("reports a signature it cannot check without the contact key", async () => {
+    const signer = await openpgp.generateKey({
+      userIDs: [{ email: "nobody@example.org" }],
+      format: "object",
+    });
+    const raw = await signedMessage(signer.privateKey);
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key], []);
+
+    expect(result.signature.status).toBe("unknown-key");
+    expect(result.signature.keyId).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  test("does not claim a signature when the mail carries none", async () => {
+    const raw = await storedMessage("From: a@b.c\nSubject: Plain\n\nsem assinatura\n");
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key], []);
+    expect(result.signature.status).toBe("none");
+  });
+
+  test("keeps working when no verification keys are given at all", async () => {
+    const raw = await storedMessage("From: a@b.c\nSubject: Plain\n\ncorpo\n");
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key]);
+    expect(result.text.trim()).toBe("corpo");
+    expect(result.signature.status).toBe("none");
+  });
+});
