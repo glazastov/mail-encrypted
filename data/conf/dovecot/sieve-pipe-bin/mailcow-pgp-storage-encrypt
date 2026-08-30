@@ -112,9 +112,9 @@ def db_credentials():
     return None, None, None
 
 def load_public_key(candidates):
-    # The storage plugin hands the key over directly, so the common path needs
-    # no database access at all. The DB lookup below only matters if this is
-    # invoked some other way.
+    # The Dovecot plugin does not pass the key: it forwards the DB credentials
+    # and PGP_STORAGE_RECIPIENT, and the lookup below does the rest. This env
+    # var only exists so the filter can be exercised without a database.
     env_key = os.environ.get("PGP_PUBLIC_KEY", "").strip()
     if env_key:
         hide = os.environ.get("PGP_ENCRYPT_SUBJECT", "0") == "1"
@@ -408,25 +408,53 @@ def pgp_mime(original, encrypted, hide_subject=False):
     outer.attach(payload)
     return outer.as_bytes()
 
+def already_openpgp(parsed):
+    """Whether the message is itself an OpenPGP message we must not touch.
+
+    Anchored on the decoded body rather than a byte window over the raw source:
+    a reply quoting "> -----BEGIN PGP MESSAGE-----" is ordinary text that still
+    has to be encrypted for storage, and an inline message whose armor sits
+    past a fixed window, or arrives quoted-printable, is still an OpenPGP
+    message.
+    """
+    if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
+        return True
+    if parsed.get_content_type().lower() == "multipart/encrypted":
+        return True
+    if parsed.is_multipart():
+        return False
+
+    try:
+        body = parsed.get_payload(decode=True)
+    except Exception:
+        body = None
+    if body is None:
+        return False
+
+    return body.lstrip().startswith(b"-----BEGIN PGP MESSAGE-----")
+
+
 def main():
     original = sys.stdin.buffer.read()
     parsed = email.message_from_bytes(original, policy=SMTP)
 
     # Already protected: passing it through unchanged is a success, not a
     # failure to encrypt.
-    if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
-        emit(original)
-        return 0
-    if parsed.get_content_type().lower() == "multipart/encrypted":
-        emit(original)
-        return 0
-    if b"-----BEGIN PGP MESSAGE-----" in original[:4096]:
+    if already_openpgp(parsed):
         emit(original)
         return 0
 
     argv_recipients = get_argv_recipients()
     env_recipients = candidates_from_env()
-    header_recipients = candidates_from_headers(parsed)
+
+    # Headers are written by whoever sent the message. Trusting them when the
+    # mailbox owner is already known would let a sender pick whose key the mail
+    # is encrypted to, leaving the real recipient unable to read their own mail.
+    authoritative = os.environ.get("PGP_STORAGE_RECIPIENT", "").strip()
+    if authoritative:
+        header_recipients = []
+    else:
+        header_recipients = candidates_from_headers(parsed)
 
     all_candidates = argv_recipients + env_recipients + header_recipients
 

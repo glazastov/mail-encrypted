@@ -363,6 +363,7 @@ describe("finding a sender key inside the message", () => {
       format: "armored",
     });
     const found = await core.findSenderKeys({
+      from: { address: "cid@example.org" },
       headers: [],
       attachments: [
         {
@@ -383,6 +384,7 @@ describe("finding a sender key inside the message", () => {
     });
     const keydata = Buffer.from(generated.publicKey.toPacketList().write()).toString("base64");
     const found = await core.findSenderKeys({
+      from: { address: "dee@example.org" },
       headers: [{ key: "autocrypt", value: `addr=dee@example.org; keydata=${keydata}` }],
       attachments: [],
     });
@@ -391,11 +393,18 @@ describe("finding a sender key inside the message", () => {
   });
 
   test("finds nothing when the message carries no key", async () => {
-    expect(await core.findSenderKeys({ headers: [], attachments: [] })).toHaveLength(0);
+    expect(
+      await core.findSenderKeys({
+        from: { address: "dee@example.org" },
+        headers: [],
+        attachments: [],
+      })
+    ).toHaveLength(0);
   });
 
   test("ignores an attachment that is not a key", async () => {
     const found = await core.findSenderKeys({
+      from: { address: "dee@example.org" },
       headers: [],
       attachments: [
         {
@@ -473,12 +482,12 @@ describe("choosing which identity to show for a signature", () => {
     );
   });
 
-  test("falls back to the first identity when nothing matches", () => {
-    expect(core.pickUserId(ids, "someone@else.org")).toBe(ids[0]);
+  test("names nobody when no identity matches the sender", () => {
+    expect(core.pickUserId(ids, "someone@else.org")).toBe("");
   });
 
-  test("falls back to the first identity when there is no sender", () => {
-    expect(core.pickUserId(ids, null)).toBe(ids[0]);
+  test("names nobody when there is no sender to compare against", () => {
+    expect(core.pickUserId(ids, null)).toBe("");
   });
 
   test("returns an empty string when the key has no identity", () => {

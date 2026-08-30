@@ -78,7 +78,9 @@
       sendPlainHint: "Signing and encrypting replace the body with an OpenPGP block, so formatting is lost.",
       sendAttachHint: "Attachments are sent unencrypted: SOGo adds them after this point.",
       proceed: "Send anyway",
-      "send-cancelled": "Sending was cancelled."
+      "send-cancelled": "Sending was cancelled.",
+      sigMismatch: "Signature not from the sender",
+      sigMismatchHint: "The signature is cryptographically valid, but the key does not belong to the address this message claims to come from."
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -151,7 +153,9 @@
       sendPlainHint: "Assinar e criptografar substituem o corpo por um bloco OpenPGP, então a formatação é perdida.",
       sendAttachHint: "Os anexos vão sem criptografia: o SOGo os adiciona depois deste ponto.",
       proceed: "Enviar mesmo assim",
-      "send-cancelled": "O envio foi cancelado."
+      "send-cancelled": "O envio foi cancelado.",
+      sigMismatch: "Assinatura não é do remetente",
+      sigMismatchHint: "A assinatura é criptograficamente válida, mas a chave não pertence ao endereço de onde a mensagem diz vir."
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -224,7 +228,9 @@
       sendPlainHint: "Assinar e cifrar substituem o corpo por um bloco OpenPGP, pelo que a formatação se perde.",
       sendAttachHint: "Os anexos seguem sem cifra: o SOGo junta-os depois deste ponto.",
       proceed: "Enviar mesmo assim",
-      "send-cancelled": "O envio foi cancelado."
+      "send-cancelled": "O envio foi cancelado.",
+      sigMismatch: "Assinatura não é do remetente",
+      sigMismatchHint: "A assinatura é criptograficamente válida, mas a chave não pertence ao endereço de onde a mensagem diz vir."
     },
     de: {
       locked: "PGP gesperrt",
@@ -297,7 +303,9 @@
       sendPlainHint: "Signieren und Verschlüsseln ersetzen den Text durch einen OpenPGP-Block, die Formatierung geht verloren.",
       sendAttachHint: "Anhänge gehen unverschlüsselt: SOGo fügt sie erst danach hinzu.",
       proceed: "Trotzdem senden",
-      "send-cancelled": "Das Senden wurde abgebrochen."
+      "send-cancelled": "Das Senden wurde abgebrochen.",
+      sigMismatch: "Signatur stammt nicht vom Absender",
+      sigMismatchHint: "Die Signatur ist kryptografisch gültig, aber der Schlüssel gehört nicht zu der Adresse, von der die Nachricht zu stammen behauptet."
     },
     ru: {
       locked: "PGP заблокирован",
@@ -370,7 +378,9 @@
       sendPlainHint: "Подпись и шифрование заменяют тело письма блоком OpenPGP, форматирование теряется.",
       sendAttachHint: "Вложения уйдут незашифрованными: SOGo добавляет их позже.",
       proceed: "Всё равно отправить",
-      "send-cancelled": "Отправка отменена."
+      "send-cancelled": "Отправка отменена.",
+      sigMismatch: "Подпись не от отправителя",
+      sigMismatchHint: "Подпись криптографически верна, но ключ не принадлежит адресу, от которого якобы пришло письмо."
     }
   };
 
@@ -760,8 +770,11 @@
   }
 
   function describeSignature(signature, sender) {
+    var matches = core.signatureMatchesSender(signature, sender);
     var byStatus = {
-      valid: { icon: "verified_user", color: "#2e7d32", text: label("sigValid") },
+      valid: matches
+        ? { icon: "verified_user", color: "#2e7d32", text: label("sigValid") }
+        : { icon: "report_problem", color: "#c62828", text: label("sigMismatch") },
       invalid: { icon: "report_problem", color: "#c62828", text: label("sigInvalid") },
       "unknown-key": { icon: "help_outline", color: "#ef6c00", text: label("sigUnknown") },
       none: { icon: "lock", color: "#616161", text: label("sigNone") }
@@ -770,12 +783,15 @@
     var who = "";
     var others = [];
 
-    if (signature.status === "valid" && signature.userIds && signature.userIds.length) {
+    if (signature.status === "valid" && matches) {
       var chosen = core.pickUserId(signature.userIds, sender && sender.address);
       who = label("signedBy") + " " + chosen;
-      others = signature.userIds.filter(function (userId) {
+      others = (signature.userIds || []).filter(function (userId) {
         return userId !== chosen;
       });
+    } else if (signature.status === "valid") {
+      who = label("sigMismatchHint");
+      others = signature.userIds || [];
     } else if (signature.keyId) {
       who = signature.keyId;
     }
@@ -1234,7 +1250,9 @@
 
   function attachmentLinks(result) {
     return result.attachments.map(function (attachment) {
-      var url = URL.createObjectURL(new Blob([attachment.content], { type: attachment.mimeType }));
+      var url = URL.createObjectURL(
+        new Blob([attachment.content], { type: core.safeAttachmentType(attachment.mimeType) })
+      );
       blobUrls.push(url);
       return { filename: attachment.filename, url: url };
     });
