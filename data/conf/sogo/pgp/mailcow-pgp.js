@@ -336,9 +336,10 @@
 
   var STYLE = [
     ".mailcow-pgp-frame{width:100%;height:60vh;border:0;background:#fff}",
-    ".mailcow-pgp-sig{display:flex;align-items:center;gap:6px;flex-wrap:wrap}",
-    ".mailcow-pgp-sig>*{flex:0 0 auto;margin:0}",
-    ".mailcow-pgp-sig md-icon{margin:0;min-width:24px}"
+    ".mailcow-pgp-badges{gap:6px;padding:4px 8px}",
+    ".mailcow-pgp-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px 2px 6px;",
+    "border:1px solid;border-radius:12px;font-size:12px;line-height:20px;white-space:nowrap}",
+    ".mailcow-pgp-badge md-icon{margin:0;min-width:16px;width:16px;height:16px;font-size:16px}"
   ].join("");
 
   var VAULT_PREFIX = "mailcow.pgp.vault.";
@@ -442,23 +443,31 @@
 
   var INPLACE_TEMPLATE = [
     '<div class="mailcow-pgp-message" layout="column">',
-    '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.encryption.color}">',
-    "<md-icon>{{ pgp.encryption.icon }}</md-icon>",
-    '<span class="md-body-2">{{ pgp.encryption.text }}</span>',
+
+    '<div layout="row" layout-align="end center" layout-wrap="layout-wrap"',
+    ' class="mailcow-pgp-badges">',
+
+    '<span class="mailcow-pgp-badge" ng-style="{color: pgp.encryption.color,',
+    " borderColor: pgp.encryption.color}\">",
+    "<md-icon ng-style=\"{color: pgp.encryption.color}\">{{ pgp.encryption.icon }}</md-icon>",
+    "<span>{{ pgp.encryption.text }}</span>",
     '<md-tooltip md-direction="bottom">{{ pgp.encryption.hint }}</md-tooltip>',
-    "</div>",
-    '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.signature.color}">',
-    "<md-icon>{{ pgp.signature.icon }}</md-icon>",
-    '<span class="md-body-2">{{ pgp.signature.text }}</span>',
-    '<span class="md-caption" ng-if="pgp.signature.who">{{ pgp.signature.who }}</span>',
-    '<md-icon ng-if="pgp.signature.others.length">more_horiz',
-    '<md-tooltip md-direction="bottom">{{ pgp.signature.othersLabel }}</md-tooltip>',
-    "</md-icon>",
-    '<md-button class="md-raised md-primary" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
+    "</span>",
+
+    '<span class="mailcow-pgp-badge" ng-style="{color: pgp.signature.color,',
+    " borderColor: pgp.signature.color}\">",
+    "<md-icon ng-style=\"{color: pgp.signature.color}\">{{ pgp.signature.icon }}</md-icon>",
+    "<span>{{ pgp.signature.text }}</span>",
+    '<md-tooltip md-direction="bottom" ng-if="pgp.signature.tooltip">',
+    "{{ pgp.signature.tooltip }}</md-tooltip>",
+    "</span>",
+
+    '<md-button class="md-raised md-primary md-sm" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
     ' ng-click="pgp.addSenderKey()">{{ pgp.text.addSenderKey }}</md-button>',
     '<span class="md-caption" ng-if="pgp.senderKeyAdded">{{ pgp.text.senderKeyAdded }}</span>',
     '<span class="md-caption" ng-if="pgp.showNoSenderKey">{{ pgp.text.noSenderKey }}</span>',
     "</div>",
+
     '<iframe class="mailcow-pgp-frame" sandbox="" referrerpolicy="no-referrer"></iframe>',
     '<div layout="row" layout-wrap="layout-wrap" ng-if="pgp.attachments.length">',
     '<md-button class="md-raised" ng-repeat="file in pgp.attachments"',
@@ -676,13 +685,18 @@
       who = signature.keyId;
     }
 
+    var tooltip = who;
+    if (others.length) {
+      tooltip += (tooltip ? "\n" : "") + label("otherIdentities") + " " + others.join(", ");
+    }
+
     return {
       icon: described.icon,
       color: described.color,
       text: described.text,
       who: who,
       others: others,
-      othersLabel: others.length ? label("otherIdentities") + " " + others.join(", ") : ""
+      tooltip: tooltip
     };
   }
 
@@ -1149,6 +1163,22 @@
     );
   }
 
+  function applyRealSubject(body, subject) {
+    if (!subject || !window.angular) return;
+
+    var header = document.querySelector("h5.sg-md-headline") ||
+      (body.closest && body.closest("md-card") && body.closest("md-card").querySelector("h5"));
+    if (!header) return;
+
+    var scope = window.angular.element(header).scope();
+    if (!scope || !scope.viewer || !scope.viewer.message) return;
+    if (!core.isObscuredSubject(scope.viewer.message.subject)) return;
+
+    scope.viewer.message.subject = subject;
+    scope.$applyAsync();
+    note("real subject applied");
+  }
+
   function renderInPlace(result) {
     var body = document.querySelector("div.msg-body");
     var $compile = service("$compile");
@@ -1206,6 +1236,7 @@
 
     var frame = compiled[0].querySelector(".mailcow-pgp-frame");
     if (frame) frame.setAttribute("srcdoc", srcdoc);
+    applyRealSubject(body, result.subject);
     keepHidden(card);
     note("rendered in place");
     return true;
