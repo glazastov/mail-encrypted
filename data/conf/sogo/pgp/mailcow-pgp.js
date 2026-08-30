@@ -1072,7 +1072,36 @@
     });
   }
 
+  var HIDE_SELECTORS = ["[class*=msg-attachment]", ".mailer_mailcontent", ".sg-mail-part"];
+  var hideObserver = null;
+
+  function hideNode(node) {
+    if (!node || node.hasAttribute("data-mailcow-pgp-hidden")) return;
+    if (node.closest && node.closest(".mailcow-pgp-message")) return;
+    node.hidden = true;
+    node.setAttribute("data-mailcow-pgp-hidden", "1");
+  }
+
+  function hideOriginalParts(card) {
+    HIDE_SELECTORS.forEach(function (selector) {
+      Array.prototype.forEach.call(card.querySelectorAll(selector), hideNode);
+    });
+  }
+
+  function keepHidden(card) {
+    if (hideObserver) hideObserver.disconnect();
+    hideObserver = new MutationObserver(function () {
+      if (!document.querySelector(".mailcow-pgp-message")) return;
+      hideOriginalParts(card);
+    });
+    hideObserver.observe(card, { childList: true, subtree: true });
+  }
+
   function clearInPlace() {
+    if (hideObserver) {
+      hideObserver.disconnect();
+      hideObserver = null;
+    }
     var previous = document.querySelector(".mailcow-pgp-message");
     if (previous) previous.remove();
     Array.prototype.forEach.call(
@@ -1092,10 +1121,10 @@
 
     clearInPlace();
 
-    Array.prototype.forEach.call(body.children, function (child) {
-      child.hidden = true;
-      child.setAttribute("data-mailcow-pgp-hidden", "1");
-    });
+    Array.prototype.forEach.call(body.children, hideNode);
+
+    var card = (body.closest && body.closest("md-card")) || document.body;
+    hideOriginalParts(card);
 
     var scope = $rootScope.$new(true);
     var signature = result.signature || { status: "none" };
@@ -1141,6 +1170,7 @@
 
     var frame = compiled[0].querySelector(".mailcow-pgp-frame");
     if (frame) frame.setAttribute("srcdoc", srcdoc);
+    keepHidden(card);
     note("rendered in place");
     return true;
   }
