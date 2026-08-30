@@ -112,9 +112,9 @@ def db_credentials():
     return None, None, None
 
 def load_public_key(candidates):
-    # The storage plugin hands the key over directly, so the common path needs
-    # no database access at all. The DB lookup below only matters if this is
-    # invoked some other way.
+    # The Dovecot plugin does not pass the key: it forwards the DB credentials
+    # and PGP_STORAGE_RECIPIENT, and the lookup below does the rest. This env
+    # var only exists so the filter can be exercised without a database.
     env_key = os.environ.get("PGP_PUBLIC_KEY", "").strip()
     if env_key:
         hide = os.environ.get("PGP_ENCRYPT_SUBJECT", "0") == "1"
