@@ -408,19 +408,39 @@ def pgp_mime(original, encrypted, hide_subject=False):
     outer.attach(payload)
     return outer.as_bytes()
 
+def already_openpgp(parsed):
+    """Whether the message is itself an OpenPGP message we must not touch.
+
+    Anchored on the decoded body rather than a byte window over the raw source:
+    a reply quoting "> -----BEGIN PGP MESSAGE-----" is ordinary text that still
+    has to be encrypted for storage, and an inline message whose armor sits
+    past a fixed window, or arrives quoted-printable, is still an OpenPGP
+    message.
+    """
+    if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
+        return True
+    if parsed.get_content_type().lower() == "multipart/encrypted":
+        return True
+    if parsed.is_multipart():
+        return False
+
+    try:
+        body = parsed.get_payload(decode=True)
+    except Exception:
+        body = None
+    if body is None:
+        return False
+
+    return body.lstrip().startswith(b"-----BEGIN PGP MESSAGE-----")
+
+
 def main():
     original = sys.stdin.buffer.read()
     parsed = email.message_from_bytes(original, policy=SMTP)
 
     # Already protected: passing it through unchanged is a success, not a
     # failure to encrypt.
-    if parsed.get("X-Mailcow-PGP-Storage") == "encrypted":
-        emit(original)
-        return 0
-    if parsed.get_content_type().lower() == "multipart/encrypted":
-        emit(original)
-        return 0
-    if b"-----BEGIN PGP MESSAGE-----" in original[:4096]:
+    if already_openpgp(parsed):
         emit(original)
         return 0
 
