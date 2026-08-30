@@ -11,6 +11,15 @@
   var STORAGE_MARKER = /^x-mailcow-pgp-storage:\s*encrypted/im;
   var PGP_MIME = /^content-type:\s*multipart\/encrypted[\s\S]{0,400}?application\/pgp-encrypted/im;
 
+  function fromBase64(value) {
+    var binary = atob(value);
+    var bytes = new Uint8Array(binary.length);
+    for (var index = 0; index < binary.length; index++) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }
+
   function fail(code, message, cause) {
     var error = new Error(message);
     error.code = code;
@@ -37,6 +46,50 @@
     function findArmoredMessage(text) {
       var match = ARMOR.exec(unescapeSource(text));
       return match ? match[0] : null;
+    }
+
+    function classifySource(text) {
+      var source = unescapeSource(text);
+      if (STORAGE_MARKER.test(source)) return "storage";
+      if (PGP_MIME.test(source) || ARMOR.test(source)) return "end-to-end";
+      return "none";
+    }
+
+    async function findSenderKeys(parsed) {
+      var candidates = [];
+
+      (parsed.attachments || []).forEach(function (attachment) {
+        if (String(attachment.mimeType).toLowerCase() !== "application/pgp-keys") return;
+        candidates.push({ armored: new TextDecoder().decode(attachment.content) });
+      });
+
+      (parsed.headers || []).forEach(function (header) {
+        if (String(header.key).toLowerCase() !== "autocrypt") return;
+        var match = /keydata=([A-Za-z0-9+/=\s]+)/i.exec(String(header.value));
+        if (!match) return;
+        candidates.push({ base64: match[1].replace(/\s+/g, "") });
+      });
+
+      var found = [];
+      for (var index = 0; index < candidates.length; index++) {
+        var candidate = candidates[index];
+        try {
+          var key;
+          if (candidate.armored) {
+            key = await openpgp.readKey({ armoredKey: candidate.armored });
+          } else {
+            key = await openpgp.readKey({ binaryKey: fromBase64(candidate.base64) });
+          }
+          found.push({
+            armored: key.toPublic().armor(),
+            fingerprint: key.getFingerprint(),
+            userIds: key.getUserIDs()
+          });
+        } catch (error) {
+          continue;
+        }
+      }
+      return found;
     }
 
     function isEncryptedSource(text) {
@@ -187,6 +240,7 @@
 
       var parsed = await parseMime(decrypted.data);
       parsed.signature = await describeSignatures(decrypted.signatures, verificationKeys);
+      parsed.encryption = classifySource(rawSource);
       return parsed;
     }
 
@@ -219,6 +273,8 @@
       unescapeSource: unescapeSource,
       findArmoredMessage: findArmoredMessage,
       isEncryptedSource: isEncryptedSource,
+      classifySource: classifySource,
+      findSenderKeys: findSenderKeys,
       readPublicKeys: readPublicKeys,
       inspectPrivateKey: inspectPrivateKey,
       unlockPrivateKey: unlockPrivateKey,
