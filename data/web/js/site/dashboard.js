@@ -1674,7 +1674,6 @@ function createHostCpuAndMemChart(){
     options: optionsMem
   });
 }
-// check for updates, both in our own repository and in upstream mailcow
 function check_update(){
   window.fetch("/inc/ajax/update_check.php", {method:'GET',cache:'no-cache'}).then(function(response) {
     if (!response.ok) throw new Error("update check returned " + response.status);
@@ -1690,7 +1689,6 @@ function check_update(){
     $("#mailcow_update").html('<span class="d-block text-danger"><b>' + lang_debug.update_failed + '</b></span>');
   });
 }
-// one repository, one line: who was checked and what came back
 function render_update_line(source){
   if (!source || !source.repo) return '';
 
@@ -1700,7 +1698,6 @@ function render_update_line(source){
     return '<span class="d-block text-success">' + label + '<b>' + lang_debug.no_update_available + '</b></span>';
 
   if (source.status === "update_available"){
-    // A fork without releases reports commits instead of a tag
     var what = source.tag ? source.tag : (source.commits + ' commits');
     var link = source.url
       ? '<a href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener">' + escapeHtml(what) + '</a>'
@@ -1735,7 +1732,6 @@ function showVersionModal(title, version){
         keyboard: false
       }).show();
     },
-    // A fork that publishes no releases has no changelog to show - link to the tag instead
     error: function () {
       var url = 'https://github.com/' + mailcow_info.project_owner + '/' + mailcow_info.project_repo + '/tree/' + version;
       $('#showVersionModal').find(".modal-title").html(title);
