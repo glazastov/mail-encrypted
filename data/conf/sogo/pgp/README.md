@@ -9,14 +9,15 @@ holding nothing but the mailbox's public key.
 
 | File | Role |
 |---|---|
-| `openpgp.min.js` | OpenPGP.js 6.3.1, vendored (LGPL-3.0+). Defines the `openpgp` global. |
-| `postal-mime.min.js` | postal-mime 3.0.0, bundled to IIFE (MIT-0). Defines `MailcowPostalMime`. |
+| `mailcow-openpgp.min.js` | OpenPGP.js 6.3.1, vendored (LGPL-3.0+). Defines the `openpgp` global. |
+| `mailcow-postal-mime.min.js` | postal-mime 3.0.0, bundled to IIFE (MIT-0). Defines `MailcowPostalMime`. |
+| `mailcow-pgp-vault.js` | Seals the private key with AES-256-GCM under a PBKDF2-SHA256 key (600k iterations). |
 | `mailcow-pgp-core.js` | Armor extraction, key unlocking, decryption and MIME parsing. No DOM access, so it is unit tested outside the browser. |
-| `mailcow-pgp.js` | SOGo integration: key dialog, message detection and the reading overlay. |
+| `mailcow-pgp.js` | SOGo integration: the preferences panel, message detection and the reading overlay. |
 
 They are registered in `data/conf/sogo/sogo.conf` under
 `SOGoUIAdditionalJSFiles` and bind mounted into the container's
-`WebServerResources/js/pgp/` by `docker-compose.yml`. Nothing in the SOGo source
+`WebServerResources/js/` by `docker-compose.yml`. Nothing in the SOGo source
 tree is patched, so a SOGo upgrade does not have to be re-patched.
 
 The reading path is:
@@ -32,24 +33,28 @@ The reading path is:
 
 ## Where the private key lives
 
-In the browser, never on the server. The unlocked key exists only in a variable
-for the lifetime of the page. "Keep this key in this browser" additionally
-writes the armored key to `localStorage` for that origin; this is off by
-default, because anyone with access to the browser profile — or any XSS in the
-webmail — can then read it. The passphrase is never stored.
+In the browser, never on the server, and never in the clear. The key is pasted
+or uploaded once in **SOGo preferences**, where it is sealed with AES-256-GCM
+under a key derived from a vault password with PBKDF2-SHA256 over 600000
+iterations; only that envelope reaches `localStorage`. Opening a message asks
+for the vault password, and the unlocked key then lives in a page variable
+until the tab is closed. The vault password itself is never stored.
+
+An envelope that claims weaker parameters than the current minimum is refused
+rather than opened, so a downgraded envelope cannot be forced through.
 
 ## Updating the vendored libraries
 
 ```
 cd helper-scripts/dev_tests/pgp-webmail
 bun update openpgp postal-mime
-cp node_modules/openpgp/dist/openpgp.min.js ../../../data/conf/sogo/pgp/openpgp.min.js
+cp node_modules/openpgp/dist/openpgp.min.js ../../../data/conf/sogo/pgp/mailcow-openpgp.min.js
 bun build ./vendor-entry.js --format=iife --minify \
-  --outfile=../../../data/conf/sogo/pgp/postal-mime.min.js
+  --outfile=../../../data/conf/sogo/pgp/mailcow-postal-mime.min.js
 bun test
 ```
 
-Drop the trailing `//# sourceMappingURL=` line from `openpgp.min.js`: the map is
+Drop the trailing `//# sourceMappingURL=` line from `mailcow-openpgp.min.js`: the map is
 not shipped and the browser would request it for nothing.
 
 ## Tests
