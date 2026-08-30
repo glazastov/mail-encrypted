@@ -231,6 +231,10 @@ services:
         - ./data/conf/sogo/custom-fulllogo.png:/usr/local/lib/GNUstep/SOGo/WebServerResources/img/sogo-logo.png:z
         - ./data/conf/sogo/custom-theme.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/theme.js:z
         - ./data/conf/sogo/custom-sogo.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/custom-sogo.js:z
+        - ./data/conf/sogo/pgp/openpgp.min.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/pgp/openpgp.min.js:z
+        - ./data/conf/sogo/pgp/postal-mime.min.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/pgp/postal-mime.min.js:z
+        - ./data/conf/sogo/pgp/mailcow-pgp-core.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/pgp/mailcow-pgp-core.js:z
+        - ./data/conf/sogo/pgp/mailcow-pgp.js:/usr/local/lib/GNUstep/SOGo/WebServerResources/js/pgp/mailcow-pgp.js:z
         - mysql-socket-vol-1:/var/run/mysqld/:z
         - sogo-web-vol-1:/sogo_web
         - sogo-userdata-backup-vol-1:/sogo_backup

@@ -78,4 +78,5 @@ create_cold_standby.sh
 !data/conf/nginx/mailcow_auth.conf
 data/conf/postfix/postfix-tlspol
 data/conf/dovecot/sieve-pipe-bin/__pycache__
+node_modules/
 backups/

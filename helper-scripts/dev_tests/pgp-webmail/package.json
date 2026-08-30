@@ -1,0 +1,9 @@
+{
+  "name": "mailcow-pgp-webmail-tests",
+  "private": true,
+  "description": "Tests for the browser side PGP decryption used by SOGo (data/conf/sogo/pgp)",
+  "devDependencies": {
+    "openpgp": "^6.3.1",
+    "postal-mime": "^3.0.0"
+  }
+}

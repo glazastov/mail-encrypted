@@ -3,37 +3,30 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/prerequisites.inc.php';
 
 header('Content-Type: application/json');
 
-// Admins only
 if (!isset($_SESSION['mailcow_cc_role']) || $_SESSION['mailcow_cc_role'] !== 'admin') {
   http_response_code(403);
   echo json_encode(array('status' => 'error', 'message' => 'access denied'));
   exit;
 }
 
-// This deployment: our own fork, the branch we track and the commit we run
 $owner   = $GLOBALS['MAILCOW_GIT_OWNER'] ?? '';
 $repo    = $GLOBALS['MAILCOW_GIT_REPO'] ?? '';
 $branch  = $GLOBALS['MAILCOW_BRANCH'] ?? 'master';
 $current = $GLOBALS['MAILCOW_GIT_VERSION'] ?? '';
 $head    = $GLOBALS['MAILCOW_GIT_HEAD_COMMIT'] ?? ($GLOBALS['MAILCOW_GIT_COMMIT'] ?? '');
 
-// Upstream mailcow: the commit our history branched off from
 $up_owner = $GLOBALS['MAILCOW_UPSTREAM_OWNER'] ?? 'mailcow';
 $up_repo  = $GLOBALS['MAILCOW_UPSTREAM_REPO'] ?? 'mailcow-dockerized';
 $up_base  = $GLOBALS['MAILCOW_UPSTREAM_BASE_COMMIT'] ?? '';
 
-// Cache key is bound to what we run, so an update invalidates it naturally
 $cache_key = 'MAILCOW_UPDATE_CHECK/' . md5($current . '|' . $head . '|' . $up_base);
 
-// Serve cached result if present (a handful of GitHub calls per TTL, not per page load)
 $cached = $redis->get($cache_key);
 if ($cached !== false) {
   echo $cached;
   exit;
 }
 
-// GitHub requires a User-Agent and rate-limits unauthenticated requests to 60/h per IP.
-// GITHUB_TOKEN (optional, from the environment) lifts that to 5000/h.
 function github_get($url) {
   $headers = array('Accept: application/vnd.github+json');
   $token = getenv('GITHUB_TOKEN');
@@ -54,7 +47,6 @@ function github_get($url) {
   return is_array($json) ? $json : false;
 }
 
-// How far $base is from $ref inside $owner/$repo. Returns false when GitHub cannot tell us.
 function github_compare($owner, $repo, $base, $ref) {
   $cmp = github_get(sprintf(
     'https://api.github.com/repos/%s/%s/compare/%s...%s',
@@ -62,15 +54,12 @@ function github_compare($owner, $repo, $base, $ref) {
   ));
   if ($cmp === false || empty($cmp['status'])) return false;
   return array(
-    'status'   => $cmp['status'],                 // identical | ahead | behind | diverged
-    'ahead_by' => (int)($cmp['ahead_by'] ?? 0),   // commits $ref has that $base lacks
+    'status'   => $cmp['status'],
+    'ahead_by' => (int)($cmp['ahead_by'] ?? 0),
     'url'      => $cmp['html_url'] ?? '',
   );
 }
 
-// Our own repository. Releases are used when the fork publishes them, otherwise we
-// compare the running commit against the tip of the branch we track - a fork without
-// releases is the normal case and must not read as a failure.
 function check_own($owner, $repo, $branch, $current, $head) {
   $result = array('repo' => $owner . '/' . $repo, 'status' => 'unknown');
   if (empty($owner) || empty($repo)) return $result;
@@ -106,8 +95,6 @@ function check_own($owner, $repo, $branch, $current, $head) {
   return $result;
 }
 
-// Upstream mailcow. We compare the commit our fork branched off from against the latest
-// upstream release, so "up to date" means "our base already contains that release".
 function check_upstream($owner, $repo, $base) {
   $result = array('repo' => $owner . '/' . $repo, 'status' => 'unknown');
 
@@ -136,8 +123,6 @@ $upstream = check_upstream($up_owner, $up_repo, $up_base);
 
 $result = json_encode(array('status' => 'ok', 'own' => $own, 'upstream' => $upstream));
 
-// Cache a conclusive answer for an hour, an inconclusive one only briefly so a rate
-// limit or a network hiccup does not freeze the panel for the rest of the hour
 $ttl = ($own['status'] === 'unknown' || $upstream['status'] === 'unknown') ? 300 : 3600;
 $redis->setex($cache_key, $ttl, $result);
 echo $result;
