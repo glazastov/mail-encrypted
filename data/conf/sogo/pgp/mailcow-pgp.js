@@ -69,7 +69,8 @@
       encE2EHint: "The sender encrypted it before sending.",
       addSenderKey: "Add this key to contacts",
       senderKeyAdded: "Contact key added",
-      noSenderKey: "The message carries no key. Add it in the preferences."
+      noSenderKey: "The message carries no key. Add it in the preferences.",
+      otherIdentities: "Other identities on this key:"
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -133,7 +134,8 @@
       encE2EHint: "O remetente criptografou antes de enviar.",
       addSenderKey: "Adicionar esta chave aos contatos",
       senderKeyAdded: "Chave do contato adicionada",
-      noSenderKey: "A mensagem não traz a chave. Adicione nas preferências."
+      noSenderKey: "A mensagem não traz a chave. Adicione nas preferências.",
+      otherIdentities: "Outras identidades desta chave:"
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -197,7 +199,8 @@
       encE2EHint: "O remetente cifrou-a antes de enviar.",
       addSenderKey: "Adicionar esta chave aos contactos",
       senderKeyAdded: "Chave do contacto adicionada",
-      noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências."
+      noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências.",
+      otherIdentities: "Outras identidades desta chave:"
     },
     de: {
       locked: "PGP gesperrt",
@@ -261,7 +264,8 @@
       encE2EHint: "Der Absender hat sie vor dem Senden verschlüsselt.",
       addSenderKey: "Diesen Schlüssel zu Kontakten hinzufügen",
       senderKeyAdded: "Kontaktschlüssel hinzugefügt",
-      noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu."
+      noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu.",
+      otherIdentities: "Weitere Identitäten dieses Schlüssels:"
     },
     ru: {
       locked: "PGP заблокирован",
@@ -325,7 +329,8 @@
       encE2EHint: "Отправитель зашифровал сообщение до отправки.",
       addSenderKey: "Добавить этот ключ в контакты",
       senderKeyAdded: "Ключ контакта добавлен",
-      noSenderKey: "В сообщении нет ключа. Добавьте его в настройках."
+      noSenderKey: "В сообщении нет ключа. Добавьте его в настройках.",
+      otherIdentities: "Другие личности этого ключа:"
     }
   };
 
@@ -445,6 +450,9 @@
     "<md-icon>{{ pgp.signature.icon }}</md-icon>",
     '<span class="md-body-2">{{ pgp.signature.text }}</span>',
     '<span class="md-caption" ng-if="pgp.signature.who">&nbsp;- {{ pgp.signature.who }}</span>',
+    '<md-icon class="md-caption" ng-if="pgp.signature.others.length">more_horiz',
+    '<md-tooltip md-direction="bottom">{{ pgp.signature.othersLabel }}</md-tooltip>',
+    "</md-icon>",
     '<md-button class="md-raised md-primary" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
     ' ng-click="pgp.addSenderKey()">{{ pgp.text.addSenderKey }}</md-button>',
     '<span class="md-caption" ng-if="pgp.senderKeyAdded">{{ pgp.text.senderKeyAdded }}</span>',
@@ -515,6 +523,7 @@
   var unlockedKeys = [];
   var blobUrls = [];
   var lastHandled = "";
+  var failed = {};
   var busy = false;
   var angularInjector = null;
   var trace = [];
@@ -643,7 +652,7 @@
     return writeContacts(contacts);
   }
 
-  function describeSignature(signature) {
+  function describeSignature(signature, sender) {
     var byStatus = {
       valid: { icon: "verified_user", color: "#2e7d32", text: label("sigValid") },
       invalid: { icon: "report_problem", color: "#c62828", text: label("sigInvalid") },
@@ -652,16 +661,25 @@
     };
     var described = byStatus[signature.status] || byStatus.none;
     var who = "";
+    var others = [];
+
     if (signature.status === "valid" && signature.userIds && signature.userIds.length) {
-      who = label("signedBy") + " " + signature.userIds.join(", ");
+      var chosen = core.pickUserId(signature.userIds, sender && sender.address);
+      who = label("signedBy") + " " + chosen;
+      others = signature.userIds.filter(function (userId) {
+        return userId !== chosen;
+      });
     } else if (signature.keyId) {
       who = signature.keyId;
     }
+
     return {
       icon: described.icon,
       color: described.color,
       text: described.text,
-      who: who
+      who: who,
+      others: others,
+      othersLabel: others.length ? label("otherIdentities") + " " + others.join(", ") : ""
     };
   }
 
@@ -1025,6 +1043,7 @@
         unlockedFromVault(readVault(), state.password)
           .then(function (key) {
             unlockedKeys = [key];
+            failed = {};
             state.password = "";
             $mdDialog.hide(true);
           })
@@ -1072,7 +1091,36 @@
     });
   }
 
+  var HIDE_SELECTORS = ["[class*=msg-attachment]", ".mailer_mailcontent", ".sg-mail-part"];
+  var hideObserver = null;
+
+  function hideNode(node) {
+    if (!node || node.hasAttribute("data-mailcow-pgp-hidden")) return;
+    if (node.closest && node.closest(".mailcow-pgp-message")) return;
+    node.hidden = true;
+    node.setAttribute("data-mailcow-pgp-hidden", "1");
+  }
+
+  function hideOriginalParts(card) {
+    HIDE_SELECTORS.forEach(function (selector) {
+      Array.prototype.forEach.call(card.querySelectorAll(selector), hideNode);
+    });
+  }
+
+  function keepHidden(card) {
+    if (hideObserver) hideObserver.disconnect();
+    hideObserver = new MutationObserver(function () {
+      if (!document.querySelector(".mailcow-pgp-message")) return;
+      hideOriginalParts(card);
+    });
+    hideObserver.observe(card, { childList: true, subtree: true });
+  }
+
   function clearInPlace() {
+    if (hideObserver) {
+      hideObserver.disconnect();
+      hideObserver = null;
+    }
     var previous = document.querySelector(".mailcow-pgp-message");
     if (previous) previous.remove();
     Array.prototype.forEach.call(
@@ -1092,17 +1140,17 @@
 
     clearInPlace();
 
-    Array.prototype.forEach.call(body.children, function (child) {
-      child.hidden = true;
-      child.setAttribute("data-mailcow-pgp-hidden", "1");
-    });
+    Array.prototype.forEach.call(body.children, hideNode);
+
+    var card = (body.closest && body.closest("md-card")) || document.body;
+    hideOriginalParts(card);
 
     var scope = $rootScope.$new(true);
     var signature = result.signature || { status: "none" };
     scope.pgp = {
       text: labels,
       encryption: describeEncryption(result.encryption),
-      signature: describeSignature(signature),
+      signature: describeSignature(signature, result.from),
       attachments: attachmentLinks(result),
       senderKey: null,
       senderKeyAdded: false,
@@ -1141,6 +1189,7 @@
 
     var frame = compiled[0].querySelector(".mailcow-pgp-frame");
     if (frame) frame.setAttribute("srcdoc", srcdoc);
+    keepHidden(card);
     note("rendered in place");
     return true;
   }
@@ -1165,8 +1214,14 @@
 
   async function handleMessage(message) {
     var token = message.account + "/" + message.folder + "/" + message.uid;
-    if (busy || token === lastHandled) return;
+    var state = {
+      lastHandled: lastHandled,
+      rendered: Boolean(document.querySelector(".mailcow-pgp-message")),
+      failed: failed
+    };
+    if (busy || !core.shouldHandleMessage(token, state)) return;
     busy = true;
+    lastHandled = token;
     clearInPlace();
     try {
       var source = await fetchSource(sourceUrl(message));
@@ -1174,14 +1229,16 @@
         note("message " + token + ": not encrypted");
         return;
       }
-      lastHandled = token;
 
       if (!unlockedKeys.length) {
         if (!readVault()) {
           await showError("noVault");
           return;
         }
-        if (!(await askForPassword())) return;
+        if (!(await askForPassword())) {
+          failed[token] = true;
+          return;
+        }
       }
 
       await showResult(await core.decryptRawSource(source, unlockedKeys, await verificationKeys()));
@@ -1190,6 +1247,7 @@
       note("message " + token + ": " + (error && error.code ? error.code : error));
       if (error && error.code === "fetch-failed") return;
       if (error && error.code === "not-encrypted") return;
+      failed[token] = true;
       await showError((error && error.code) || "decrypt-failed");
     } finally {
       busy = false;
@@ -1215,13 +1273,35 @@
     };
   }
 
+  function fromLocation() {
+    var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
+    if (message) handleMessage(message);
+  }
+
   function observeLocation() {
-    function fromLocation() {
-      var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
-      if (message) handleMessage(message);
-    }
     window.addEventListener("hashchange", fromLocation);
     window.addEventListener("popstate", fromLocation);
+
+    ["pushState", "replaceState"].forEach(function (name) {
+      var original = window.history[name];
+      if (typeof original !== "function") return;
+      window.history[name] = function () {
+        var result = original.apply(this, arguments);
+        window.setTimeout(fromLocation, 0);
+        return result;
+      };
+    });
+
+    var $rootScope = service("$rootScope");
+    if ($rootScope) {
+      $rootScope.$on("$locationChangeSuccess", function () {
+        window.setTimeout(fromLocation, 0);
+      });
+      $rootScope.$on("$stateChangeSuccess", function () {
+        window.setTimeout(fromLocation, 0);
+      });
+    }
+
     fromLocation();
   }
 
@@ -1263,6 +1343,8 @@
 
   function wipeEverything() {
     unlockedKeys = [];
+    failed = {};
+    lastHandled = "";
     releaseBlobUrls();
     clearInPlace();
     try {

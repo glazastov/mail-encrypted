@@ -408,3 +408,93 @@ describe("finding a sender key inside the message", () => {
     expect(found).toHaveLength(0);
   });
 });
+
+describe("deciding whether to process an opened message", () => {
+  test("handles a message the first time it is opened", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+
+  test("does not redo work already on screen", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "A", rendered: true, failed: {} })).toBe(
+      false
+    );
+  });
+
+  test("handles a message again after visiting a plain one", () => {
+    let state = { lastHandled: "", rendered: false, failed: {} };
+
+    expect(core.shouldHandleMessage("A", state)).toBe(true);
+    state = { lastHandled: "A", rendered: true, failed: {} };
+
+    expect(core.shouldHandleMessage("B", state)).toBe(true);
+    state = { lastHandled: "B", rendered: false, failed: {} };
+
+    expect(core.shouldHandleMessage("A", state)).toBe(true);
+  });
+
+  test("redraws when SOGo replaced our block without a new request", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "A", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+
+  test("does not retry a message that already failed", () => {
+    expect(
+      core.shouldHandleMessage("A", { lastHandled: "B", rendered: false, failed: { A: true } })
+    ).toBe(false);
+  });
+
+  test("retries once the failure memo is cleared", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "B", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+});
+
+describe("choosing which identity to show for a signature", () => {
+  const ids = [
+    "André Glazastov <andre@glazastov.com>",
+    "André Glazastov Ribas <andre@glazastov.com>",
+    "André Glazastov <andre@glazastyy.com>",
+    "André Glazastov <andre@glazastov.de>",
+  ];
+
+  test("prefers the identity matching the sender address", () => {
+    expect(core.pickUserId(ids, "andre@glazastov.de")).toBe(
+      "André Glazastov <andre@glazastov.de>"
+    );
+  });
+
+  test("ignores case and spacing in the sender address", () => {
+    expect(core.pickUserId(ids, "  ANDRE@GlazastyY.com ")).toBe(
+      "André Glazastov <andre@glazastyy.com>"
+    );
+  });
+
+  test("falls back to the first identity when nothing matches", () => {
+    expect(core.pickUserId(ids, "someone@else.org")).toBe(ids[0]);
+  });
+
+  test("falls back to the first identity when there is no sender", () => {
+    expect(core.pickUserId(ids, null)).toBe(ids[0]);
+  });
+
+  test("returns an empty string when the key has no identity", () => {
+    expect(core.pickUserId([], "a@b.c")).toBe("");
+  });
+
+  test("never returns the whole list", () => {
+    expect(core.pickUserId(ids, "andre@glazastov.com")).not.toInclude(",");
+  });
+
+  test("the decrypted result exposes the sender so the caller can match on it", async () => {
+    const raw = await storedMessage(
+      'From: Ana <ana@example.org>\nSubject: Hi\nContent-Type: text/plain; charset="utf-8"\n\nbody\n'
+    );
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key]);
+    expect(result.from.address).toBe("ana@example.org");
+  });
+});

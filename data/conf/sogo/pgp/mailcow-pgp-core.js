@@ -48,6 +48,29 @@
       return match ? match[0] : null;
     }
 
+    function pickUserId(userIds, address) {
+      var list = userIds || [];
+      if (!list.length) return "";
+
+      var wanted = String(address || "").trim().toLowerCase();
+      if (!wanted) return list[0];
+
+      var matched = list.filter(function (userId) {
+        var found = /<([^>]+)>/.exec(userId);
+        var email = found ? found[1] : userId;
+        return String(email).trim().toLowerCase() === wanted;
+      })[0];
+
+      return matched || list[0];
+    }
+
+    function shouldHandleMessage(token, state) {
+      if (!token) return false;
+      if (state.failed && state.failed[token]) return false;
+      if (state.rendered && token === state.lastHandled) return false;
+      return true;
+    }
+
     function classifySource(text) {
       var source = unescapeSource(text);
       if (STORAGE_MARKER.test(source)) return "storage";
@@ -254,6 +277,9 @@
 
       return {
         subject: parsed.subject || "",
+        from: parsed.from
+          ? { name: parsed.from.name || "", address: parsed.from.address || "" }
+          : null,
         text: parsed.text || "",
         html: parsed.html || "",
         attachments: (parsed.attachments || []).map(function (attachment) {
@@ -274,6 +300,8 @@
       findArmoredMessage: findArmoredMessage,
       isEncryptedSource: isEncryptedSource,
       classifySource: classifySource,
+      pickUserId: pickUserId,
+      shouldHandleMessage: shouldHandleMessage,
       findSenderKeys: findSenderKeys,
       readPublicKeys: readPublicKeys,
       inspectPrivateKey: inspectPrivateKey,
