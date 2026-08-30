@@ -41,6 +41,12 @@ which one it is: mail encrypted only at rest reached the server in the clear,
 which is a materially weaker guarantee than mail the sender encrypted
 end to end. Both are reported, never conflated.
 
+When the mailbox has subject encryption on, the stored subject is the filter's
+`[...]` marker and the real one travels inside the payload. Once decrypted it
+is written back into SOGo's own message model, so the header - and the list row
+sharing that model - show the real subject instead of the marker. A subject
+that is not the marker is never overwritten.
+
 ## Signatures and contact keys
 
 Contact public keys are added in the same preferences page and kept as plain
