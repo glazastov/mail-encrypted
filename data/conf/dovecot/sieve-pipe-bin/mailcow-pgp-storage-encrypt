@@ -51,6 +51,22 @@ def log_debug(msg):
     except Exception:
         pass
 
+def refuse(reason):
+    """Report why nothing was encrypted, on stderr as well as the debug log.
+
+    Dovecot captures the filter's stderr into the mail log, right beside the
+    "could not be encrypted for storage" it raises, so the admin sees the cause
+    without having to know the debug file exists.
+    """
+    log_debug("not encrypted: " + reason)
+    try:
+        sys.stderr.write("mailcow-pgp-storage: not encrypted: {}\n".format(reason))
+        sys.stderr.flush()
+    except Exception:
+        pass
+    return EXIT_NOT_ENCRYPTED
+
+
 def emit(data):
     sys.stdout.buffer.write(data)
 
@@ -467,9 +483,8 @@ def main():
     try:
         public_key, hide_subject = load_public_key(all_candidates)
         if not public_key:
-            log_debug("No public key found for any candidate")
             emit(original)
-            return EXIT_NOT_ENCRYPTED
+            return refuse("no key for any of: " + (", ".join(all_candidates) or "no candidate"))
         # Only messages whose subject is being hidden need the marker, so
         # everyone else keeps a payload identical to what arrived.
         payload = mark_protected_headers(original) if hide_subject else original
@@ -478,13 +493,11 @@ def main():
             emit(pgp_mime(original, encrypted, hide_subject))
             log_debug("Encryption successful for key_len=" + str(len(public_key)))
             return 0
-        log_debug("Encryption returned None, emitting original")
         emit(original)
-        return EXIT_NOT_ENCRYPTED
+        return refuse("both sq and gpg failed to encrypt")
     except Exception as e:
-        log_debug("Exception: " + str(e))
         emit(original)
-        return EXIT_NOT_ENCRYPTED
+        return refuse("{}: {}".format(type(e).__name__, e))
 
 if __name__ == "__main__":
     sys.exit(main())
