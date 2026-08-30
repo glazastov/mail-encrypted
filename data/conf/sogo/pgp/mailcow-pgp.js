@@ -8,20 +8,13 @@
 
   var LABELS = {
     en: {
-      unlock: "Unlock PGP",
       locked: "PGP locked",
-      unlocked: "PGP unlocked",
-      title: "Your OpenPGP private key",
       keyLabel: "Private key",
       passphrase: "Passphrase",
-      remember: "Keep this key in this browser",
-      rememberHint:
-        "Stored only in this browser and never sent to the server. Anyone with access to this browser profile can read it.",
       unlockButton: "Unlock",
       cancel: "Cancel",
       forget: "Forget key",
       close: "Close",
-      working: "Decrypting…",
       attachments: "Attachments",
       noSubject: "(no subject)",
       "bad-key": "That is not a usable OpenPGP private key.",
@@ -45,23 +38,28 @@
       "no-secret": "Paste your private key first.",
       keyFile: "Or upload a key file",
       "file-too-large": "That file is too large to be a key.",
-      "file-failed": "The file could not be read."
+      "file-failed": "The file could not be read.",
+      verify: "Verify key",
+      keyPassphraseTitle: "This key is protected",
+      keyPassphraseHint: "Enter the passphrase of the PGP key itself.",
+      keyPassphrase: "Key passphrase",
+      verified: "Key verified",
+      vaultTitle: "Protect the key in this browser",
+      vaultHint: "Choose a password. It encrypts both the key and its passphrase before anything is stored.",
+      confirm: "Confirm password",
+      continue: "Continue",
+      startOver: "Use another key",
+      "password-mismatch": "The passwords do not match.",
+      "password-too-short": "Use at least 10 characters."
     },
     "pt-br": {
-      unlock: "Desbloquear PGP",
       locked: "PGP bloqueado",
-      unlocked: "PGP desbloqueado",
-      title: "Sua chave privada OpenPGP",
       keyLabel: "Chave privada",
       passphrase: "Senha da chave",
-      remember: "Manter esta chave neste navegador",
-      rememberHint:
-        "Guardada apenas neste navegador e nunca enviada ao servidor. Quem tiver acesso a este perfil do navegador pode lê-la.",
       unlockButton: "Desbloquear",
       cancel: "Cancelar",
       forget: "Esquecer chave",
       close: "Fechar",
-      working: "Descriptografando…",
       attachments: "Anexos",
       noSubject: "(sem assunto)",
       "bad-key": "Isto não é uma chave privada OpenPGP utilizável.",
@@ -85,23 +83,28 @@
       "no-secret": "Cole sua chave privada primeiro.",
       keyFile: "Ou envie um arquivo de chave",
       "file-too-large": "O arquivo é grande demais para ser uma chave.",
-      "file-failed": "Não foi possível ler o arquivo."
+      "file-failed": "Não foi possível ler o arquivo.",
+      verify: "Verificar chave",
+      keyPassphraseTitle: "Esta chave está protegida",
+      keyPassphraseHint: "Digite a senha da própria chave PGP.",
+      keyPassphrase: "Senha da chave PGP",
+      verified: "Chave verificada",
+      vaultTitle: "Proteger a chave neste navegador",
+      vaultHint: "Escolha uma senha. Ela criptografa a chave e a senha dela antes de qualquer coisa ser armazenada.",
+      confirm: "Confirmar senha",
+      continue: "Continuar",
+      startOver: "Usar outra chave",
+      "password-mismatch": "As senhas não coincidem.",
+      "password-too-short": "Use pelo menos 10 caracteres."
     },
     "pt-pt": {
-      unlock: "Desbloquear PGP",
       locked: "PGP bloqueado",
-      unlocked: "PGP desbloqueado",
-      title: "A sua chave privada OpenPGP",
       keyLabel: "Chave privada",
       passphrase: "Frase-passe",
-      remember: "Manter esta chave neste browser",
-      rememberHint:
-        "Guardada apenas neste browser e nunca enviada para o servidor. Quem tiver acesso a este perfil do browser pode lê-la.",
       unlockButton: "Desbloquear",
       cancel: "Cancelar",
       forget: "Esquecer chave",
       close: "Fechar",
-      working: "A decifrar…",
       attachments: "Anexos",
       noSubject: "(sem assunto)",
       "bad-key": "Isto não é uma chave privada OpenPGP utilizável.",
@@ -125,23 +128,28 @@
       "no-secret": "Cole primeiro a sua chave privada.",
       keyFile: "Ou carregue um ficheiro de chave",
       "file-too-large": "O ficheiro é grande demais para ser uma chave.",
-      "file-failed": "Não foi possível ler o ficheiro."
+      "file-failed": "Não foi possível ler o ficheiro.",
+      verify: "Verificar chave",
+      keyPassphraseTitle: "Esta chave está protegida",
+      keyPassphraseHint: "Introduza a frase-passe da própria chave PGP.",
+      keyPassphrase: "Frase-passe da chave PGP",
+      verified: "Chave verificada",
+      vaultTitle: "Proteger a chave neste browser",
+      vaultHint: "Escolha uma palavra-passe. Cifra a chave e a frase-passe dela antes de algo ser guardado.",
+      confirm: "Confirmar palavra-passe",
+      continue: "Continuar",
+      startOver: "Usar outra chave",
+      "password-mismatch": "As palavras-passe não coincidem.",
+      "password-too-short": "Use pelo menos 10 caracteres."
     },
     de: {
-      unlock: "PGP entsperren",
       locked: "PGP gesperrt",
-      unlocked: "PGP entsperrt",
-      title: "Ihr privater OpenPGP-Schlüssel",
       keyLabel: "Privater Schlüssel",
       passphrase: "Passphrase",
-      remember: "Diesen Schlüssel in diesem Browser behalten",
-      rememberHint:
-        "Nur in diesem Browser gespeichert und niemals an den Server gesendet. Wer Zugriff auf dieses Browserprofil hat, kann ihn lesen.",
       unlockButton: "Entsperren",
       cancel: "Abbrechen",
       forget: "Schlüssel verwerfen",
       close: "Schließen",
-      working: "Wird entschlüsselt…",
       attachments: "Anhänge",
       noSubject: "(kein Betreff)",
       "bad-key": "Das ist kein verwendbarer privater OpenPGP-Schlüssel.",
@@ -165,23 +173,28 @@
       "no-secret": "Fügen Sie zuerst Ihren privaten Schlüssel ein.",
       keyFile: "Oder eine Schlüsseldatei hochladen",
       "file-too-large": "Diese Datei ist zu groß für einen Schlüssel.",
-      "file-failed": "Die Datei konnte nicht gelesen werden."
+      "file-failed": "Die Datei konnte nicht gelesen werden.",
+      verify: "Schlüssel prüfen",
+      keyPassphraseTitle: "Dieser Schlüssel ist geschützt",
+      keyPassphraseHint: "Geben Sie die Passphrase des PGP-Schlüssels ein.",
+      keyPassphrase: "Schlüssel-Passphrase",
+      verified: "Schlüssel geprüft",
+      vaultTitle: "Schlüssel in diesem Browser schützen",
+      vaultHint: "Wählen Sie ein Passwort. Es verschlüsselt Schlüssel und Passphrase, bevor etwas gespeichert wird.",
+      confirm: "Passwort bestätigen",
+      continue: "Weiter",
+      startOver: "Anderen Schlüssel verwenden",
+      "password-mismatch": "Die Passwörter stimmen nicht überein.",
+      "password-too-short": "Mindestens 10 Zeichen verwenden."
     },
     ru: {
-      unlock: "Разблокировать PGP",
       locked: "PGP заблокирован",
-      unlocked: "PGP разблокирован",
-      title: "Ваш закрытый ключ OpenPGP",
       keyLabel: "Закрытый ключ",
       passphrase: "Пароль ключа",
-      remember: "Сохранить ключ в этом браузере",
-      rememberHint:
-        "Хранится только в этом браузере и никогда не отправляется на сервер. Любой, у кого есть доступ к этому профилю браузера, сможет его прочитать.",
       unlockButton: "Разблокировать",
       cancel: "Отмена",
       forget: "Забыть ключ",
       close: "Закрыть",
-      working: "Расшифровка…",
       attachments: "Вложения",
       noSubject: "(без темы)",
       "bad-key": "Это не пригодный закрытый ключ OpenPGP.",
@@ -205,55 +218,155 @@
       "no-secret": "Сначала вставьте закрытый ключ.",
       keyFile: "Или загрузите файл ключа",
       "file-too-large": "Файл слишком велик для ключа.",
-      "file-failed": "Не удалось прочитать файл."
+      "file-failed": "Не удалось прочитать файл.",
+      verify: "Проверить ключ",
+      keyPassphraseTitle: "Ключ защищён",
+      keyPassphraseHint: "Введите пароль самого ключа PGP.",
+      keyPassphrase: "Пароль ключа PGP",
+      verified: "Ключ проверен",
+      vaultTitle: "Защитить ключ в этом браузере",
+      vaultHint: "Выберите пароль. Он шифрует и ключ, и его пароль до сохранения.",
+      confirm: "Повторите пароль",
+      continue: "Продолжить",
+      startOver: "Другой ключ",
+      "password-mismatch": "Пароли не совпадают.",
+      "password-too-short": "Используйте не менее 10 символов."
     }
   };
 
-  var STYLE = [
-    "#mailcow-pgp-prefs{margin:16px;padding:16px;border:1px solid #e0e0e0;border-radius:6px;",
-    "background:#fff;font:14px/1.5 sans-serif;max-width:760px}",
-    "#mailcow-pgp-prefs h3{margin:0 0 6px;font-size:16px}",
-    "#mailcow-pgp-prefs .mailcow-pgp-hint{color:#616161;font-size:12px;margin:0 0 12px}",
-    "#mailcow-pgp-prefs label{display:block;font-weight:600;margin-bottom:4px}",
-    "#mailcow-pgp-prefs textarea,#mailcow-pgp-prefs input{width:100%;box-sizing:border-box;",
-    "border:1px solid #bdbdbd;border-radius:4px;padding:8px;font:13px monospace;margin-bottom:12px}",
-    "#mailcow-pgp-prefs textarea{height:150px;resize:vertical}",
-    "#mailcow-pgp-prefs input[type=file]{font:13px sans-serif;padding:6px}",
-    "#mailcow-pgp-prefs button{border:0;border-radius:4px;padding:8px 14px;font:600 13px sans-serif;",
-    "cursor:pointer;background:#eee;margin-right:8px}",
-    "#mailcow-pgp-prefs button.mailcow-pgp-primary{background:#2e7d32;color:#fff}",
-    ".mailcow-pgp-error{color:#c62828;font-weight:600;margin-bottom:12px}",
-    ".mailcow-pgp-ok{color:#2e7d32;font-weight:600;margin-bottom:12px}",
-    "#mailcow-pgp-overlay{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.45);display:flex;",
-    "align-items:center;justify-content:center}",
-    "#mailcow-pgp-overlay .mailcow-pgp-panel{background:#fff;color:#212121;width:min(880px,94vw);",
-    "max-height:92vh;display:flex;flex-direction:column;border-radius:6px;overflow:hidden;",
-    "font:14px/1.5 sans-serif}",
-    ".mailcow-pgp-panel header{padding:14px 18px;border-bottom:1px solid #e0e0e0;font-weight:600}",
-    ".mailcow-pgp-panel .mailcow-pgp-body{padding:16px 18px;overflow:auto}",
-    ".mailcow-pgp-panel footer{padding:12px 18px;border-top:1px solid #e0e0e0;display:flex;gap:8px;",
-    "justify-content:flex-end}",
-    ".mailcow-pgp-panel button{border:0;border-radius:4px;padding:8px 14px;font:600 13px sans-serif;",
-    "cursor:pointer;background:#eee}",
-    ".mailcow-pgp-panel button.mailcow-pgp-primary{background:#2e7d32;color:#fff}",
-    ".mailcow-pgp-panel input{width:100%;box-sizing:border-box;border:1px solid #bdbdbd;",
-    "border-radius:4px;padding:8px;font:13px sans-serif;margin-bottom:12px}",
-    ".mailcow-pgp-frame{width:100%;height:52vh;border:1px solid #e0e0e0;border-radius:4px;background:#fff}",
-    ".mailcow-pgp-attachments{margin-top:14px}",
-    ".mailcow-pgp-attachments a{display:inline-block;margin:0 8px 8px 0;padding:6px 10px;",
-    "background:#eee;border-radius:4px;color:#1565c0;text-decoration:none}"
-  ].join("");
+  var STYLE = ".mailcow-pgp-frame{width:100%;height:60vh;border:0;background:#fff}";
 
   var VAULT_PREFIX = "mailcow.pgp.vault.";
   var MAX_KEY_BYTES = 512 * 1024;
-  var ROUTE = /#\/Mail\/([^/]+)\/([^/]+)\/(\d+)/;
+  var MIN_VAULT_PASSWORD = 10;
+  var MESSAGE_URL = /\/Mail\/([^/?#]+)\/([^/?#]+)\/(\d+)(?:\/(?:view|viewsource))?(?:[?#]|$)/;
+  var PREFS_HOST = "#generalOptionsView-content div[layout=column]";
+
+  var PREFS_TEMPLATE = [
+    '<div layout="column" class="mailcow-pgp-prefs">',
+    '<h4 class="md-subhead">{{ pgp.text.prefsTitle }}</h4>',
+    '<div class="md-caption">{{ pgp.text.prefsHint }}</div>',
+    '<div class="md-caption" ng-if="pgp.status" ng-style="{color: pgp.failed ? \'#c62828\' : \'#2e7d32\'}">',
+    "{{ pgp.status }}</div>",
+
+    '<div ng-if="pgp.step === \'input\'" layout="column">',
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.keyLabel }}</label>",
+    '<textarea ng-model="pgp.armored" rows="6" spellcheck="false" autocomplete="off"></textarea>',
+    "</md-input-container>",
+    '<div layout="row" layout-align="start center">',
+    '<md-button class="md-raised" ng-click="pgp.pickFile()">{{ pgp.text.keyFile }}</md-button>',
+    '<span class="md-caption">{{ pgp.fileName }}</span>',
+    "</div>",
+    '<div layout="row"><md-button class="md-raised md-primary" ng-disabled="!pgp.armored"',
+    ' ng-click="pgp.verify()">{{ pgp.text.verify }}</md-button></div>',
+    "</div>",
+
+    '<div ng-if="pgp.step === \'passphrase\'" layout="column">',
+    '<div class="md-body-2">{{ pgp.text.keyPassphraseTitle }}</div>',
+    '<div class="md-caption">{{ pgp.text.keyPassphraseHint }}</div>',
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.keyPassphrase }}</label>",
+    '<input type="password" ng-model="pgp.keyPassphrase" autocomplete="off"',
+    " ng-keydown=\"$event.key === 'Enter' && pgp.checkPassphrase()\"/>",
+    "</md-input-container>",
+    '<div layout="row">',
+    '<md-button class="md-raised md-primary" ng-click="pgp.checkPassphrase()">',
+    "{{ pgp.text.continue }}</md-button>",
+    '<md-button ng-click="pgp.reset()">{{ pgp.text.startOver }}</md-button>',
+    "</div>",
+    "</div>",
+
+    '<div ng-if="pgp.step === \'vault\'" layout="column">',
+    '<div class="md-body-2">{{ pgp.text.vaultTitle }}</div>',
+    '<div class="md-caption">{{ pgp.identity }}</div>',
+    '<div class="md-caption">{{ pgp.text.vaultHint }}</div>',
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.vaultPassword }}</label>",
+    '<input type="password" ng-model="pgp.vaultPassword" autocomplete="new-password"/>',
+    "</md-input-container>",
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.confirm }}</label>",
+    '<input type="password" ng-model="pgp.vaultConfirm" autocomplete="new-password"',
+    " ng-keydown=\"$event.key === 'Enter' && pgp.save()\"/>",
+    "</md-input-container>",
+    '<div layout="row">',
+    '<md-button class="md-raised md-primary" ng-click="pgp.save()">{{ pgp.text.save }}</md-button>',
+    '<md-button ng-click="pgp.reset()">{{ pgp.text.startOver }}</md-button>',
+    "</div>",
+    "</div>",
+
+    '<div ng-if="pgp.step === \'saved\'" layout="row">',
+    '<md-button class="md-raised" ng-click="pgp.reset()">{{ pgp.text.startOver }}</md-button>',
+    '<md-button class="md-raised md-warn" ng-click="pgp.forget()">{{ pgp.text.forget }}</md-button>',
+    "</div>",
+    "</div>"
+  ].join("");
+
+  var UNLOCK_TEMPLATE = [
+    '<md-dialog aria-label="{{ pgp.text.unlockTitle }}" flex="40" flex-sm="80" flex-xs="100">',
+    '<md-dialog-content class="md-dialog-content">',
+    '<h2 class="md-title">{{ pgp.text.unlockTitle }}</h2>',
+    "<p>{{ pgp.text.unlockHint }}</p>",
+    '<div class="md-caption" ng-if="pgp.error" ng-style="{color: \'#c62828\'}">{{ pgp.error }}</div>',
+    '<md-input-container class="md-block">',
+    "<label>{{ pgp.text.vaultPassword }}</label>",
+    '<input type="password" ng-model="pgp.password" autocomplete="current-password"',
+    " ng-keydown=\"$event.key === 'Enter' && pgp.submit()\"/>",
+    "</md-input-container>",
+    "</md-dialog-content>",
+    "<md-dialog-actions>",
+    '<md-button ng-click="pgp.cancel()">{{ pgp.text.cancel }}</md-button>',
+    '<md-button class="md-primary md-raised" ng-click="pgp.submit()">{{ pgp.text.unlockButton }}</md-button>',
+    "</md-dialog-actions>",
+    "</md-dialog>"
+  ].join("");
+
+  var MESSAGE_TEMPLATE = [
+    '<md-dialog aria-label="{{ pgp.subject }}" flex="80" flex-xs="100">',
+    "<md-toolbar>",
+    '<div class="md-toolbar-tools"><h2 class="md-flex">{{ pgp.subject }}</h2></div>',
+    "</md-toolbar>",
+    '<md-dialog-content class="md-dialog-content">',
+    '<iframe class="mailcow-pgp-frame" sandbox="" referrerpolicy="no-referrer"></iframe>',
+    '<div layout="row" layout-wrap="layout-wrap" ng-if="pgp.attachments.length">',
+    '<md-button class="md-raised" ng-repeat="file in pgp.attachments"',
+    ' ng-href="{{ file.url }}" download="{{ file.filename }}">',
+    "<md-icon>attachment</md-icon> {{ file.filename }}</md-button>",
+    "</div>",
+    "</md-dialog-content>",
+    "<md-dialog-actions>",
+    '<md-button class="md-primary" ng-click="pgp.close()">{{ pgp.text.close }}</md-button>',
+    "</md-dialog-actions>",
+    "</md-dialog>"
+  ].join("");
+
+  var ERROR_TEMPLATE = [
+    '<md-dialog aria-label="{{ pgp.text.locked }}" flex="40" flex-xs="100">',
+    '<md-dialog-content class="md-dialog-content">',
+    '<h2 class="md-title">{{ pgp.text.locked }}</h2>',
+    "<p>{{ pgp.message }}</p>",
+    "</md-dialog-content>",
+    "<md-dialog-actions>",
+    '<md-button class="md-primary" ng-click="pgp.close()">{{ pgp.text.close }}</md-button>',
+    "</md-dialog-actions>",
+    "</md-dialog>"
+  ].join("");
 
   var core = null;
   var vault = null;
   var labels = LABELS.en;
   var unlockedKeys = [];
   var blobUrls = [];
-  var lastRoute = "";
+  var lastHandled = "";
+  var busy = false;
+  var angularInjector = null;
+  var trace = [];
+
+  function note(message) {
+    trace.push(new Date().toISOString() + " " + message);
+    if (trace.length > 50) trace.shift();
+  }
 
   function label(name) {
     return labels[name] || LABELS.en[name] || name;
@@ -266,6 +379,22 @@
     if (language.indexOf("de") === 0) return LABELS.de;
     if (language.indexOf("ru") === 0) return LABELS.ru;
     return LABELS.en;
+  }
+
+  function injector() {
+    if (angularInjector) return angularInjector;
+    if (!window.angular) return null;
+    try {
+      angularInjector = window.angular.element(document.body).injector() || null;
+    } catch (error) {
+      angularInjector = null;
+    }
+    return angularInjector;
+  }
+
+  function service(name) {
+    var found = injector();
+    return found && found.has(name) ? found.get(name) : null;
   }
 
   function vaultKey() {
@@ -290,18 +419,6 @@
     }
   }
 
-  function element(tag, properties, children) {
-    var node = document.createElement(tag);
-    Object.keys(properties || {}).forEach(function (name) {
-      if (name === "text") node.textContent = properties[name];
-      else node.setAttribute(name, properties[name]);
-    });
-    (children || []).forEach(function (child) {
-      node.appendChild(child);
-    });
-    return node;
-  }
-
   function releaseBlobUrls() {
     blobUrls.forEach(function (url) {
       URL.revokeObjectURL(url);
@@ -309,168 +426,19 @@
     blobUrls = [];
   }
 
-  function closeOverlay() {
-    var overlay = document.getElementById("mailcow-pgp-overlay");
-    if (overlay) overlay.remove();
-    releaseBlobUrls();
-  }
-
-  function openOverlay(title, bodyNodes, footerNodes) {
-    closeOverlay();
-    var panel = element("div", { class: "mailcow-pgp-panel" }, [
-      element("header", { text: title }),
-      element("div", { class: "mailcow-pgp-body" }, bodyNodes),
-      element("footer", {}, footerNodes)
-    ]);
-    var overlay = element("div", { id: "mailcow-pgp-overlay" }, [panel]);
-    overlay.addEventListener("click", function (event) {
-      if (event.target === overlay) closeOverlay();
-    });
-    document.body.appendChild(overlay);
-  }
-
-  function isPreferencesPage() {
-    return /\/preferences/i.test(window.location.pathname || "");
-  }
-
-  function isMailPage() {
-    return /\/Mail/i.test(window.location.pathname || "");
-  }
-
-  function buildPreferences() {
-    if (document.getElementById("mailcow-pgp-prefs")) return;
-
-    var status = element("div", {});
-    var keyField = element("textarea", {
-      spellcheck: "false",
-      autocomplete: "off",
-      placeholder: "-----BEGIN PGP PRIVATE KEY BLOCK-----"
-    });
-    var passwordField = element("input", { type: "password", autocomplete: "new-password" });
-    var fileField = element("input", {
-      type: "file",
-      accept: ".asc,.key,.gpg,.pgp,application/pgp-keys,text/plain"
-    });
-
-    fileField.addEventListener("change", async function () {
-      var file = fileField.files && fileField.files[0];
-      if (!file) return;
-      status.className = "mailcow-pgp-error";
-      if (file.size > MAX_KEY_BYTES) {
-        status.textContent = label("file-too-large");
-        fileField.value = "";
-        return;
-      }
-      try {
-        keyField.value = await file.text();
-        status.className = "";
-        status.textContent = "";
-      } catch (error) {
-        status.textContent = label("file-failed");
-      }
-      fileField.value = "";
-    });
-
-    var saveButton = element("button", { class: "mailcow-pgp-primary", text: label("save") });
-    var forgetButton = element("button", { text: label("forget") });
-
-    var panel = element("div", { id: "mailcow-pgp-prefs" }, [
-      element("h3", { text: label("prefsTitle") }),
-      element("p", { class: "mailcow-pgp-hint", text: label("prefsHint") }),
-      status,
-      element("label", { text: label("keyLabel") }),
-      keyField,
-      element("label", { text: label("keyFile") }),
-      fileField,
-      element("label", { text: label("vaultPassword") }),
-      passwordField,
-      saveButton,
-      forgetButton
-    ]);
-
-    if (readVault()) {
-      status.className = "mailcow-pgp-ok";
-      status.textContent = label("saved");
-    }
-
-    saveButton.addEventListener("click", async function () {
-      status.className = "mailcow-pgp-error";
-      try {
-        await core.unlockPrivateKey(keyField.value, passwordField.value);
-        var sealed = await vault.seal(keyField.value.trim(), passwordField.value);
-        if (!writeVault(sealed)) throw { code: "bad-vault" };
-        keyField.value = "";
-        passwordField.value = "";
-        status.className = "mailcow-pgp-ok";
-        status.textContent = label("saved");
-      } catch (error) {
-        status.textContent = label(error.code) || String(error.message || error);
-      }
-    });
-
-    forgetButton.addEventListener("click", function () {
-      writeVault("");
-      unlockedKeys = [];
-      status.className = "";
-      status.textContent = "";
-    });
-
-    document.body.appendChild(panel);
-  }
-
-  function askForPassword() {
-    return new Promise(function (resolve) {
-      var error = element("div", { class: "mailcow-pgp-error" });
-      error.style.display = "none";
-      var field = element("input", { type: "password", autocomplete: "current-password" });
-      var unlockButton = element("button", {
-        class: "mailcow-pgp-primary",
-        text: label("unlockButton")
-      });
-      var cancelButton = element("button", { text: label("cancel") });
-
-      openOverlay(
-        label("unlockTitle"),
-        [error, element("p", { text: label("unlockHint") }), field],
-        [cancelButton, unlockButton]
-      );
-
-      cancelButton.addEventListener("click", function () {
-        closeOverlay();
-        resolve(false);
-      });
-
-      unlockButton.addEventListener("click", async function () {
-        error.style.display = "none";
-        try {
-          var armored = await vault.open(readVault(), field.value);
-          unlockedKeys = [await core.unlockPrivateKey(armored, field.value)];
-          field.value = "";
-          closeOverlay();
-          resolve(true);
-        } catch (failure) {
-          error.textContent = label(failure.code) || String(failure.message);
-          error.style.display = "block";
-        }
-      });
-
-      field.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") unlockButton.click();
-      });
-    });
-  }
-
-  function currentMessageUrl() {
-    var match = ROUTE.exec(window.location.hash || "");
+  function messageFrom(url) {
+    var match = MESSAGE_URL.exec(String(url || ""));
     if (!match) return null;
+    return { account: match[1], folder: match[2], uid: match[3] };
+  }
+
+  function sourceUrl(message) {
     var base = window.UserFolderURL || "";
     if (base.charAt(base.length - 1) !== "/") base += "/";
-    return {
-      route: match[0],
-      url:
-        base + "Mail/" + encodeURIComponent(match[1]) + "/" + encodeURIComponent(match[2]) +
-        "/" + encodeURIComponent(match[3]) + "/viewsource"
-    };
+    return (
+      base + "Mail/" + encodeURIComponent(message.account) + "/" +
+      encodeURIComponent(message.folder) + "/" + encodeURIComponent(message.uid) + "/viewsource"
+    );
   }
 
   async function fetchSource(url) {
@@ -479,94 +447,398 @@
     return response.text();
   }
 
-  function buildFrame(result) {
-    var frame = element("iframe", {
-      class: "mailcow-pgp-frame",
-      sandbox: "",
-      referrerpolicy: "no-referrer"
-    });
-    var content = result.html
-      ? result.html
-      : '<pre style="white-space:pre-wrap;font:14px/1.5 sans-serif"></pre>';
-    frame.setAttribute(
-      "srcdoc",
-      '<!doctype html><html><head><meta charset="utf-8">' +
-        '<meta http-equiv="Content-Security-Policy" ' +
-        "content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'\">" +
-        "</head><body>" + content + "</body></html>"
-    );
-    if (!result.html) {
-      frame.addEventListener("load", function () {
-        var target = frame.contentDocument && frame.contentDocument.querySelector("pre");
-        if (target) target.textContent = result.text;
-      });
+  function buildPreferences(host) {
+    if (host.querySelector(".mailcow-pgp-prefs")) return;
+
+    var $compile = service("$compile");
+    var $rootScope = service("$rootScope");
+    if (!$compile || !$rootScope) {
+      note("preferences: angular services unavailable");
+      return;
     }
-    return frame;
+
+    var picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = ".asc,.key,.gpg,.pgp,application/pgp-keys,text/plain";
+    picker.style.display = "none";
+    document.body.appendChild(picker);
+
+    var scope = $rootScope.$new(true);
+
+    function fail(error) {
+      scope.pgp.failed = true;
+      scope.pgp.status = label(error && error.code) || String((error && error.message) || error);
+      scope.$applyAsync();
+    }
+
+    scope.pgp = {
+      text: labels,
+      step: readVault() ? "saved" : "input",
+      armored: "",
+      fileName: "",
+      keyPassphrase: "",
+      identity: "",
+      vaultPassword: "",
+      vaultConfirm: "",
+      status: readVault() ? label("saved") : "",
+      failed: false,
+
+      pickFile: function () {
+        picker.click();
+      },
+
+      reset: function () {
+        var state = scope.pgp;
+        state.step = "input";
+        state.armored = "";
+        state.fileName = "";
+        state.keyPassphrase = "";
+        state.identity = "";
+        state.vaultPassword = "";
+        state.vaultConfirm = "";
+        state.failed = false;
+        state.status = "";
+      },
+
+      verify: function () {
+        var state = scope.pgp;
+        state.failed = false;
+        state.status = "";
+        core
+          .inspectPrivateKey(state.armored)
+          .then(function (report) {
+            state.identity = report.userIds.join(", ") + " (" + report.fingerprint + ")";
+            state.step = report.needsPassphrase ? "passphrase" : "vault";
+            if (!report.needsPassphrase) {
+              state.keyPassphrase = "";
+              state.status = label("verified");
+            }
+            scope.$applyAsync();
+          })
+          .catch(fail);
+      },
+
+      checkPassphrase: function () {
+        var state = scope.pgp;
+        state.failed = false;
+        core
+          .unlockPrivateKey(state.armored, state.keyPassphrase)
+          .then(function () {
+            state.status = label("verified");
+            state.step = "vault";
+            scope.$applyAsync();
+          })
+          .catch(fail);
+      },
+
+      save: function () {
+        var state = scope.pgp;
+        state.failed = false;
+        if (state.vaultPassword !== state.vaultConfirm) {
+          fail({ code: "password-mismatch" });
+          return;
+        }
+        if (state.vaultPassword.length < MIN_VAULT_PASSWORD) {
+          fail({ code: "password-too-short" });
+          return;
+        }
+        vault
+          .seal(
+            JSON.stringify({ key: String(state.armored).trim(), passphrase: state.keyPassphrase }),
+            state.vaultPassword
+          )
+          .then(function (sealed) {
+            if (!writeVault(sealed)) throw { code: "bad-vault" };
+            scope.pgp.reset();
+            state.step = "saved";
+            state.status = label("saved");
+            scope.$applyAsync();
+          })
+          .catch(fail);
+      },
+
+      forget: function () {
+        writeVault("");
+        unlockedKeys = [];
+        scope.pgp.reset();
+      }
+    };
+
+    picker.addEventListener("change", function () {
+      var file = picker.files && picker.files[0];
+      if (!file) return;
+      var state = scope.pgp;
+      if (file.size > MAX_KEY_BYTES) {
+        picker.value = "";
+        fail({ code: "file-too-large" });
+        return;
+      }
+      file
+        .text()
+        .then(function (content) {
+          state.armored = content;
+          state.fileName = file.name;
+          state.failed = false;
+          state.status = "";
+          scope.$applyAsync();
+        })
+        .catch(function () {
+          fail({ code: "file-failed" });
+        })
+        .then(function () {
+          picker.value = "";
+        });
+    });
+
+    var compiled = $compile(window.angular.element(PREFS_TEMPLATE))(scope);
+    host.appendChild(compiled[0]);
+    scope.$applyAsync();
+    note("preferences: panel installed");
   }
 
-  function buildAttachments(result) {
-    if (!result.attachments.length) return null;
-    var list = element("div", { class: "mailcow-pgp-attachments" }, [
-      element("label", { text: label("attachments") })
-    ]);
-    result.attachments.forEach(function (attachment) {
-      var url = URL.createObjectURL(new Blob([attachment.content], { type: attachment.mimeType }));
-      blobUrls.push(url);
-      var link = element("a", { href: url, download: attachment.filename });
-      link.textContent = attachment.filename;
-      list.appendChild(link);
+  function waitForPreferences() {
+    var host = document.querySelector(PREFS_HOST);
+    if (host) {
+      buildPreferences(host);
+      return;
+    }
+    var observer = new MutationObserver(function () {
+      var target = document.querySelector(PREFS_HOST);
+      if (!target) return;
+      observer.disconnect();
+      buildPreferences(target);
     });
-    return list;
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function showDialog(template, state) {
+    var $mdDialog = service("$mdDialog");
+    var $rootScope = service("$rootScope");
+    if (!$mdDialog || !$rootScope) {
+      note("dialog: $mdDialog unavailable");
+      return Promise.resolve(false);
+    }
+
+    var scope = $rootScope.$new(true);
+    scope.pgp = state;
+
+    var shown = $mdDialog.show({
+      template: template,
+      scope: scope,
+      preserveScope: false,
+      clickOutsideToClose: true,
+      escapeToClose: true,
+      onComplete: function (dialogScope, element) {
+        if (!state.srcdoc) return;
+        var frame = element[0].querySelector(".mailcow-pgp-frame");
+        if (frame) frame.setAttribute("srcdoc", state.srcdoc);
+      }
+    });
+
+    state.close = function () {
+      $mdDialog.hide(false);
+    };
+    state.cancel = function () {
+      $mdDialog.cancel();
+    };
+
+    return shown.catch(function () {
+      return false;
+    });
+  }
+
+  function unlockedFromVault(sealed, password) {
+    return vault.open(sealed, password).then(function (opened) {
+      var payload;
+      try {
+        payload = JSON.parse(opened);
+      } catch (error) {
+        payload = null;
+      }
+      if (payload && typeof payload === "object" && payload.key) {
+        return core.unlockPrivateKey(payload.key, payload.passphrase || "");
+      }
+      return core.unlockPrivateKey(opened, password);
+    });
+  }
+
+  function askForPassword() {
+    var $mdDialog = service("$mdDialog");
+    if (!$mdDialog) return Promise.resolve(false);
+
+    var state = {
+      text: labels,
+      password: "",
+      error: "",
+      submit: function () {
+        unlockedFromVault(readVault(), state.password)
+          .then(function (key) {
+            unlockedKeys = [key];
+            state.password = "";
+            $mdDialog.hide(true);
+          })
+          .catch(function (error) {
+            state.error = label(error && error.code) || String((error && error.message) || error);
+            var $rootScope = service("$rootScope");
+            if ($rootScope) $rootScope.$applyAsync();
+          });
+      }
+    };
+
+    return showDialog(UNLOCK_TEMPLATE, state).then(function (result) {
+      return result === true;
+    });
+  }
+
+  function escapeText(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function frameDocument(result) {
+    var body = result.html
+      ? result.html
+      : '<pre style="white-space:pre-wrap;font:14px/1.5 sans-serif">' +
+        escapeText(result.text) +
+        "</pre>";
+    return (
+      '<!doctype html><html><head><meta charset="utf-8">' +
+      '<meta http-equiv="Content-Security-Policy" ' +
+      "content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'\">" +
+      "</head><body>" +
+      body +
+      "</body></html>"
+    );
   }
 
   function showResult(result) {
-    var nodes = [buildFrame(result)];
-    var attachments = buildAttachments(result);
-    if (attachments) nodes.push(attachments);
-    var closeButton = element("button", { class: "mailcow-pgp-primary", text: label("close") });
-    openOverlay(result.subject || label("noSubject"), nodes, [closeButton]);
-    closeButton.addEventListener("click", closeOverlay);
+    releaseBlobUrls();
+    var attachments = result.attachments.map(function (attachment) {
+      var url = URL.createObjectURL(new Blob([attachment.content], { type: attachment.mimeType }));
+      blobUrls.push(url);
+      return { filename: attachment.filename, url: url };
+    });
+
+    return showDialog(MESSAGE_TEMPLATE, {
+      text: labels,
+      subject: result.subject || label("noSubject"),
+      attachments: attachments,
+      srcdoc: frameDocument(result)
+    }).then(function () {
+      releaseBlobUrls();
+    });
   }
 
   function showError(code) {
-    var closeButton = element("button", { class: "mailcow-pgp-primary", text: label("close") });
-    openOverlay(
-      label("locked"),
-      [element("div", { class: "mailcow-pgp-error", text: label(code) })],
-      [closeButton]
-    );
-    closeButton.addEventListener("click", closeOverlay);
+    return showDialog(ERROR_TEMPLATE, { text: labels, message: label(code) });
   }
 
-  async function refresh() {
-    var target = currentMessageUrl();
-    if (!target || target.route === lastRoute) return;
-    lastRoute = target.route;
-
-    var source;
+  async function handleMessage(message) {
+    var token = message.account + "/" + message.folder + "/" + message.uid;
+    if (busy || token === lastHandled) return;
+    busy = true;
     try {
-      source = await fetchSource(target.url);
-    } catch (error) {
-      return;
-    }
-    if (!core.isEncryptedSource(source)) return;
-
-    if (!unlockedKeys.length) {
-      if (!readVault()) {
-        showError("noVault");
+      var source = await fetchSource(sourceUrl(message));
+      if (!core.isEncryptedSource(source)) {
+        note("message " + token + ": not encrypted");
         return;
       }
-      if (!(await askForPassword())) return;
-    }
+      lastHandled = token;
 
-    try {
-      showResult(await core.decryptRawSource(source, unlockedKeys));
+      if (!unlockedKeys.length) {
+        if (!readVault()) {
+          await showError("noVault");
+          return;
+        }
+        if (!(await askForPassword())) return;
+      }
+
+      await showResult(await core.decryptRawSource(source, unlockedKeys));
+      note("message " + token + ": shown");
     } catch (error) {
-      if (error.code !== "not-encrypted") showError(error.code || "decrypt-failed");
+      note("message " + token + ": " + (error && error.code ? error.code : error));
+      if (error && error.code === "fetch-failed") return;
+      if (error && error.code === "not-encrypted") return;
+      await showError((error && error.code) || "decrypt-failed");
+    } finally {
+      busy = false;
     }
+  }
+
+  function observeRequests() {
+    var open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      var message = messageFrom(url);
+      if (message) window.setTimeout(function () { handleMessage(message); }, 0);
+      return open.apply(this, arguments);
+    };
+
+    var originalFetch = window.fetch;
+    window.fetch = function (input) {
+      var url = typeof input === "string" ? input : input && input.url;
+      var message = messageFrom(url);
+      if (message && String(url).indexOf("/viewsource") === -1) {
+        window.setTimeout(function () { handleMessage(message); }, 0);
+      }
+      return originalFetch.apply(this, arguments);
+    };
+  }
+
+  function observeLocation() {
+    function fromLocation() {
+      var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
+      if (message) handleMessage(message);
+    }
+    window.addEventListener("hashchange", fromLocation);
+    window.addEventListener("popstate", fromLocation);
+    fromLocation();
+  }
+
+  function selfTest() {
+    var message = messageFrom(window.location.hash) || messageFrom(window.location.pathname);
+    var report = {
+      scripts: {
+        openpgp: typeof window.openpgp,
+        postalMime: typeof window.MailcowPostalMime,
+        core: typeof window.MailcowPGPCore,
+        vault: typeof window.MailcowPGPVault
+      },
+      angular: {
+        present: Boolean(window.angular),
+        injector: Boolean(injector()),
+        mdDialog: Boolean(service("$mdDialog"))
+      },
+      user: { login: window.UserLogin || null, folderUrl: window.UserFolderURL || null },
+      vaultStored: Boolean(readVault()),
+      keysUnlocked: unlockedKeys.length,
+      routeDetected: message,
+      trace: trace.slice()
+    };
+
+    if (!message) return Promise.resolve(report);
+
+    return fetchSource(sourceUrl(message))
+      .then(function (source) {
+        report.viewsource = { ok: true, bytes: source.length };
+        report.encrypted = core.isEncryptedSource(source);
+        report.armorFound = Boolean(core.findArmoredMessage(source));
+        return report;
+      })
+      .catch(function (error) {
+        report.viewsource = { ok: false, error: (error && error.code) || String(error) };
+        return report;
+      });
+  }
+
+  function isPreferencesPage() {
+    return /\/preferences/i.test(window.location.pathname || "");
   }
 
   function install() {
+    window.MailcowPGP = { selfTest: selfTest, trace: trace };
+
     if (typeof window.MailcowPGPCore === "undefined") return;
     if (typeof window.MailcowPGPVault === "undefined") return;
     if (typeof window.openpgp === "undefined") return;
@@ -580,23 +852,23 @@
     });
     vault = window.MailcowPGPVault.create({ crypto: window.crypto });
 
-    document.head.appendChild(element("style", { text: STYLE }));
+    var style = document.createElement("style");
+    style.textContent = STYLE;
+    document.head.appendChild(style);
 
     if (isPreferencesPage()) {
-      buildPreferences();
+      waitForPreferences();
+      note("installed on preferences");
       return;
     }
 
-    if (!isMailPage()) return;
-
-    window.addEventListener("hashchange", function () {
-      refresh();
-    });
+    observeRequests();
+    observeLocation();
     window.addEventListener("beforeunload", function () {
       unlockedKeys = [];
       releaseBlobUrls();
     });
-    refresh();
+    note("installed on mail");
   }
 
   if (document.readyState === "loading") {
