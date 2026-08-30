@@ -428,6 +428,7 @@
         "bcc_empty": "BCC-Ziel darf nicht leer sein",
         "bcc_exists": "Ein BCC-Map-Eintrag %s existiert bereits als Typ %s",
         "bcc_must_be_email": "BCC-Ziel %s ist keine gültige E-Mail-Adresse",
+        "captcha_failed": "Captcha-Prüfung fehlgeschlagen. Bitte versuchen Sie es erneut.",
         "comment_too_long": "Kommentarfeld darf maximal 160 Zeichen enthalten",
         "cors_invalid_method": "Allow-Methods enthält eine ungültige Methode",
         "cors_invalid_origin": "Allow-Origins enthält eine ungültige Origin",

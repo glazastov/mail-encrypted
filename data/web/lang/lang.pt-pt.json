@@ -121,6 +121,7 @@
         "alias_invalid": "O endereço digitado como Apelido é inválido",
         "aliasd_targetd_identical": "o Encaminhamento de Domínio não pode ser igual ao Domínio Destino",
         "aliases_in_use": "O máximo de Apelidos deve ser maior ou igual a %d",
+        "captcha_failed": "Falha na verificação do captcha. Tente novamente.",
         "dkim_domain_or_sel_invalid": " Registro DKIM inválido",
         "domain_exists": "Domínio %s já existe",
         "domain_invalid": "Domínio inválido",

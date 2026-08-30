@@ -321,6 +321,14 @@ ACME_RENEW_BEFORE=
 # Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.
 ACME_CHECK_INTERVAL=
 
+# Captcha on the login and password reset forms.
+# Providers: hcaptcha, recaptcha, turnstile. Leave empty to disable.
+# Setting a provider without both keys blocks logins rather than silently
+# turning the captcha off, so fix mailcow.conf if you get locked out.
+CAPTCHA_PROVIDER=
+CAPTCHA_SITE_KEY=
+CAPTCHA_SECRET_KEY=
+
 # Create separate certificates for all domains - y/n
 # this will allow adding more than 100 domains, but some email clients will not be able to connect with alternative hostnames
 # see https://doc.dovecot.org/admin_manual/ssl/sni_support

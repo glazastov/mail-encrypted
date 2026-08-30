@@ -26,7 +26,8 @@ $template = 'reset-password.twig';
 $template_data = [
   'is_mobileconfig' => str_contains($_SESSION['index_query_string'], 'mobileconfig'),
   'is_reset_token_valid' => $is_reset_token_valid,
-  'reset_token' => $_GET['token']
+  'reset_token' => $_GET['token'],
+  'captcha' => captcha_template_data($CAPTCHA),
 ];
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/footer.inc.php';

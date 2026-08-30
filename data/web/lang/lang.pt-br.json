@@ -427,6 +427,7 @@
         "bcc_empty": "O destino do BCC não pode estar vazio",
         "bcc_exists": "Existe um mapa BCC %s para o tipo %s",
         "bcc_must_be_email": "O destino %s do BCC não é um endereço de e-mail válido",
+        "captcha_failed": "Falha na verificação do captcha. Tente novamente.",
         "comment_too_long": "Comentário muito longo, máximo de 160 caracteres permitidos",
         "cors_invalid_method": "Método de permissão inválido especificado",
         "cors_invalid_origin": "Origem de permissão inválida especificada",

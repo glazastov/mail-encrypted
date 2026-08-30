@@ -177,6 +177,7 @@ function get_remote_ip() {
 // Load core functions first
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.auth.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.captcha.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/sessions.inc.php';
 
 // Init Identity Provider
@@ -279,6 +280,8 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.address_rewriting.inc.p
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.admin.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.app_passwd.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.customize.inc.php';
+$CAPTCHA = captcha_settings();
+$GLOBALS['CAPTCHA'] = $CAPTCHA;
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.dkim.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.docker.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.domain_admin.inc.php';
