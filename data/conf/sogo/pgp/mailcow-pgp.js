@@ -69,7 +69,8 @@
       encE2EHint: "The sender encrypted it before sending.",
       addSenderKey: "Add this key to contacts",
       senderKeyAdded: "Contact key added",
-      noSenderKey: "The message carries no key. Add it in the preferences."
+      noSenderKey: "The message carries no key. Add it in the preferences.",
+      otherIdentities: "Other identities on this key:"
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -133,7 +134,8 @@
       encE2EHint: "O remetente criptografou antes de enviar.",
       addSenderKey: "Adicionar esta chave aos contatos",
       senderKeyAdded: "Chave do contato adicionada",
-      noSenderKey: "A mensagem não traz a chave. Adicione nas preferências."
+      noSenderKey: "A mensagem não traz a chave. Adicione nas preferências.",
+      otherIdentities: "Outras identidades desta chave:"
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -197,7 +199,8 @@
       encE2EHint: "O remetente cifrou-a antes de enviar.",
       addSenderKey: "Adicionar esta chave aos contactos",
       senderKeyAdded: "Chave do contacto adicionada",
-      noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências."
+      noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências.",
+      otherIdentities: "Outras identidades desta chave:"
     },
     de: {
       locked: "PGP gesperrt",
@@ -261,7 +264,8 @@
       encE2EHint: "Der Absender hat sie vor dem Senden verschlüsselt.",
       addSenderKey: "Diesen Schlüssel zu Kontakten hinzufügen",
       senderKeyAdded: "Kontaktschlüssel hinzugefügt",
-      noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu."
+      noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu.",
+      otherIdentities: "Weitere Identitäten dieses Schlüssels:"
     },
     ru: {
       locked: "PGP заблокирован",
@@ -325,7 +329,8 @@
       encE2EHint: "Отправитель зашифровал сообщение до отправки.",
       addSenderKey: "Добавить этот ключ в контакты",
       senderKeyAdded: "Ключ контакта добавлен",
-      noSenderKey: "В сообщении нет ключа. Добавьте его в настройках."
+      noSenderKey: "В сообщении нет ключа. Добавьте его в настройках.",
+      otherIdentities: "Другие личности этого ключа:"
     }
   };
 
@@ -445,6 +450,9 @@
     "<md-icon>{{ pgp.signature.icon }}</md-icon>",
     '<span class="md-body-2">{{ pgp.signature.text }}</span>',
     '<span class="md-caption" ng-if="pgp.signature.who">&nbsp;- {{ pgp.signature.who }}</span>',
+    '<md-icon class="md-caption" ng-if="pgp.signature.others.length">more_horiz',
+    '<md-tooltip md-direction="bottom">{{ pgp.signature.othersLabel }}</md-tooltip>',
+    "</md-icon>",
     '<md-button class="md-raised md-primary" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
     ' ng-click="pgp.addSenderKey()">{{ pgp.text.addSenderKey }}</md-button>',
     '<span class="md-caption" ng-if="pgp.senderKeyAdded">{{ pgp.text.senderKeyAdded }}</span>',
@@ -644,7 +652,7 @@
     return writeContacts(contacts);
   }
 
-  function describeSignature(signature) {
+  function describeSignature(signature, sender) {
     var byStatus = {
       valid: { icon: "verified_user", color: "#2e7d32", text: label("sigValid") },
       invalid: { icon: "report_problem", color: "#c62828", text: label("sigInvalid") },
@@ -653,16 +661,25 @@
     };
     var described = byStatus[signature.status] || byStatus.none;
     var who = "";
+    var others = [];
+
     if (signature.status === "valid" && signature.userIds && signature.userIds.length) {
-      who = label("signedBy") + " " + signature.userIds.join(", ");
+      var chosen = core.pickUserId(signature.userIds, sender && sender.address);
+      who = label("signedBy") + " " + chosen;
+      others = signature.userIds.filter(function (userId) {
+        return userId !== chosen;
+      });
     } else if (signature.keyId) {
       who = signature.keyId;
     }
+
     return {
       icon: described.icon,
       color: described.color,
       text: described.text,
-      who: who
+      who: who,
+      others: others,
+      othersLabel: others.length ? label("otherIdentities") + " " + others.join(", ") : ""
     };
   }
 
@@ -1133,7 +1150,7 @@
     scope.pgp = {
       text: labels,
       encryption: describeEncryption(result.encryption),
-      signature: describeSignature(signature),
+      signature: describeSignature(signature, result.from),
       attachments: attachmentLinks(result),
       senderKey: null,
       senderKeyAdded: false,
