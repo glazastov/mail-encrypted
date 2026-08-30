@@ -15,6 +15,7 @@ scratch keyring.
 import os
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FILTER = os.path.join(
@@ -51,6 +52,29 @@ def run_filter(message, public_key, hide_subject=False):
         env=env,
     )
     return result.returncode, result.stdout
+
+
+def run_filter_with_log(message, public_key):
+    log_path = os.path.join(tempfile.mkdtemp(prefix="mailcow-pgp-log-"), "debug.log")
+    env = dict(os.environ)
+    env["PGP_PUBLIC_KEY"] = public_key
+    env["PGP_STORAGE_DEBUG"] = "1"
+    env["PGP_STORAGE_DEBUG_LOG"] = log_path
+    env["PGP_STORAGE_RECIPIENT"] = "teste@example.org"
+
+    result = subprocess.run(
+        [sys.executable, FILTER],
+        input=message,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    try:
+        with open(log_path) as handle:
+            log = handle.read()
+    except OSError:
+        log = ""
+    return result.returncode, result.stdout, log
 
 
 def armored_block(size):
@@ -140,6 +164,15 @@ def main():
     code, out = run_filter(encoded_inline, public_key)
     check("a base64 inline message passes through", code, 0)
     check("a base64 inline message is unchanged", out, encoded_inline)
+
+    spoofed = message(
+        "From: atacante@evil.example\nTo: outro@example.org\n"
+        "Delivered-To: outro@example.org\nSubject: quem paga\n",
+        "corpo\n",
+    )
+    code, out, log = run_filter_with_log(spoofed, public_key)
+    check("a sender cannot add candidates through headers", "outro@example.org" in log, False)
+    check("the mailbox owner is the only candidate", "teste@example.org" in log, True)
 
     no_key_code, no_key_out = run_filter(plain, "")
     check("no key means not encrypted", no_key_code, EXIT_NOT_ENCRYPTED)

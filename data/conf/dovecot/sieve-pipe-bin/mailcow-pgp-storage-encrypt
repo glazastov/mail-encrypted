@@ -446,7 +446,15 @@ def main():
 
     argv_recipients = get_argv_recipients()
     env_recipients = candidates_from_env()
-    header_recipients = candidates_from_headers(parsed)
+
+    # Headers are written by whoever sent the message. Trusting them when the
+    # mailbox owner is already known would let a sender pick whose key the mail
+    # is encrypted to, leaving the real recipient unable to read their own mail.
+    authoritative = os.environ.get("PGP_STORAGE_RECIPIENT", "").strip()
+    if authoritative:
+        header_recipients = []
+    else:
+        header_recipients = candidates_from_headers(parsed)
 
     all_candidates = argv_recipients + env_recipients + header_recipients
 
