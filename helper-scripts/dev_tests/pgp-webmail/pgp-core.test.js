@@ -564,3 +564,35 @@ describe("remembering decrypted messages", () => {
     expect(cache.get("a")).toBeUndefined();
   });
 });
+
+describe("the obscured subject marker", () => {
+  test("recognises the marker the storage filter writes", () => {
+    expect(core.isObscuredSubject("[...]")).toBe(true);
+  });
+
+  test("tolerates surrounding whitespace", () => {
+    expect(core.isObscuredSubject("  [...]  ")).toBe(true);
+  });
+
+  test("treats an empty subject as obscured", () => {
+    expect(core.isObscuredSubject("")).toBe(true);
+    expect(core.isObscuredSubject(null)).toBe(true);
+  });
+
+  test("leaves a real subject alone", () => {
+    expect(core.isObscuredSubject("Reunião de quinta")).toBe(false);
+    expect(core.isObscuredSubject("[...] and more")).toBe(false);
+  });
+
+  test("the real subject survives inside the encrypted payload", async () => {
+    const raw = await storedMessage(
+      'From: a@b.c\nSubject: Assunto real\nContent-Type: text/plain; charset="utf-8"\n\ncorpo\n',
+      { hideSubject: true }
+    );
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key]);
+
+    expect(core.isObscuredSubject("[...]")).toBe(true);
+    expect(result.subject).toBe("Assunto real");
+  });
+});
