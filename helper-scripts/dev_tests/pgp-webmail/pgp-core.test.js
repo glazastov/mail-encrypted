@@ -498,3 +498,69 @@ describe("choosing which identity to show for a signature", () => {
     expect(result.from.address).toBe("ana@example.org");
   });
 });
+
+describe("building the folder path SOGo expects", () => {
+  test("prefixes a folder taken from the route", () => {
+    expect(core.soFolder("INBOX")).toBe("folderINBOX");
+    expect(core.soFolder("Sent")).toBe("folderSent");
+  });
+
+  test("leaves an already prefixed folder alone", () => {
+    expect(core.soFolder("folderINBOX")).toBe("folderINBOX");
+  });
+
+  test("prefixes every segment of a nested folder", () => {
+    expect(core.soFolder("INBOX/Archive")).toBe("folderINBOX/folderArchive");
+  });
+
+  test("mixes prefixed and bare segments without doubling", () => {
+    expect(core.soFolder("folderINBOX/Archive")).toBe("folderINBOX/folderArchive");
+  });
+
+  test("does not touch an already escaped name", () => {
+    expect(core.soFolder("My_SP_Folder")).toBe("folderMy_SP_Folder");
+  });
+
+  test("returns an empty string for nothing", () => {
+    expect(core.soFolder("")).toBe("");
+  });
+});
+
+describe("remembering decrypted messages", () => {
+  test("gives back what was stored", () => {
+    const cache = core.createCache(3);
+    cache.set("a", { subject: "one" });
+    expect(cache.get("a").subject).toBe("one");
+  });
+
+  test("reports a miss as undefined", () => {
+    expect(core.createCache(3).get("nothing")).toBeUndefined();
+  });
+
+  test("drops the oldest entry past its limit", () => {
+    const cache = core.createCache(2);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    cache.set("c", 3);
+    expect(cache.get("a")).toBeUndefined();
+    expect(cache.get("b")).toBe(2);
+    expect(cache.get("c")).toBe(3);
+  });
+
+  test("keeps a re-read entry alive", () => {
+    const cache = core.createCache(2);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    cache.get("a");
+    cache.set("c", 3);
+    expect(cache.get("a")).toBe(1);
+    expect(cache.get("b")).toBeUndefined();
+  });
+
+  test("forgets everything on demand", () => {
+    const cache = core.createCache(2);
+    cache.set("a", 1);
+    cache.clear();
+    expect(cache.get("a")).toBeUndefined();
+  });
+});

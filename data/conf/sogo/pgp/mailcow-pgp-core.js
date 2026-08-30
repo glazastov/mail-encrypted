@@ -48,6 +48,43 @@
       return match ? match[0] : null;
     }
 
+    function soFolder(name) {
+      var text = String(name || "");
+      if (!text) return "";
+      return text
+        .split("/")
+        .map(function (segment) {
+          if (!segment) return segment;
+          return segment.indexOf("folder") === 0 ? segment : "folder" + segment;
+        })
+        .join("/");
+    }
+
+    function createCache(limit) {
+      var entries = new Map();
+      var max = limit > 0 ? limit : 1;
+
+      return {
+        get: function (key) {
+          if (!entries.has(key)) return undefined;
+          var value = entries.get(key);
+          entries.delete(key);
+          entries.set(key, value);
+          return value;
+        },
+        set: function (key, value) {
+          if (entries.has(key)) entries.delete(key);
+          entries.set(key, value);
+          while (entries.size > max) {
+            entries.delete(entries.keys().next().value);
+          }
+        },
+        clear: function () {
+          entries.clear();
+        }
+      };
+    }
+
     function pickUserId(userIds, address) {
       var list = userIds || [];
       if (!list.length) return "";
@@ -301,6 +338,8 @@
       isEncryptedSource: isEncryptedSource,
       classifySource: classifySource,
       pickUserId: pickUserId,
+      soFolder: soFolder,
+      createCache: createCache,
       shouldHandleMessage: shouldHandleMessage,
       findSenderKeys: findSenderKeys,
       readPublicKeys: readPublicKeys,
