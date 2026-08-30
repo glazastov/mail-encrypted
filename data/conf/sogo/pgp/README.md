@@ -80,6 +80,23 @@ being removed, and the unlocked key is dropped from memory. This overwrites the
 stored *values*; it cannot promise anything about what the browser left on
 disk underneath.
 
+## Sending
+
+Signing and encrypting outgoing mail are switched on in the same preferences
+page, both on by default. `Message.prototype.$send` is wrapped, so the body is
+transformed after the user hits send and before SOGo posts it.
+
+Mail is encrypted only when **every** recipient has a contact key; one unknown
+recipient falls back to signing alone, because encrypting to some recipients
+and not others would silently drop the rest. The message is always also
+encrypted to the sender's own key, so the copy in Sent stays readable.
+
+This produces **inline OpenPGP**, not PGP/MIME: SOGo composes the MIME itself
+on the server from a JSON payload, and the only field we can rewrite is the
+body text. Two consequences are surfaced in a confirmation dialog rather than
+hidden: an HTML body is converted to plain text, and attachments are **not**
+encrypted, because SOGo adds them after the point we can reach.
+
 ## Updating the vendored libraries
 
 ```

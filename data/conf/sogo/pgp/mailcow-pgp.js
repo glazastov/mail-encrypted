@@ -70,7 +70,15 @@
       addSenderKey: "Add this key to contacts",
       senderKeyAdded: "Contact key added",
       noSenderKey: "The message carries no key. Add it in the preferences.",
-      otherIdentities: "Other identities on this key:"
+      otherIdentities: "Other identities on this key:",
+      sendingTitle: "Outgoing mail",
+      signOutgoing: "Sign what I send",
+      encryptOutgoing: "Encrypt when every recipient has a key",
+      sendPlainTitle: "Send as plain text?",
+      sendPlainHint: "Signing and encrypting replace the body with an OpenPGP block, so formatting is lost.",
+      sendAttachHint: "Attachments are sent unencrypted: SOGo adds them after this point.",
+      proceed: "Send anyway",
+      "send-cancelled": "Sending was cancelled."
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -135,7 +143,15 @@
       addSenderKey: "Adicionar esta chave aos contatos",
       senderKeyAdded: "Chave do contato adicionada",
       noSenderKey: "A mensagem não traz a chave. Adicione nas preferências.",
-      otherIdentities: "Outras identidades desta chave:"
+      otherIdentities: "Outras identidades desta chave:",
+      sendingTitle: "Mensagens enviadas",
+      signOutgoing: "Assinar o que eu enviar",
+      encryptOutgoing: "Criptografar quando todos os destinatários têm chave",
+      sendPlainTitle: "Enviar como texto puro?",
+      sendPlainHint: "Assinar e criptografar substituem o corpo por um bloco OpenPGP, então a formatação é perdida.",
+      sendAttachHint: "Os anexos vão sem criptografia: o SOGo os adiciona depois deste ponto.",
+      proceed: "Enviar mesmo assim",
+      "send-cancelled": "O envio foi cancelado."
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -200,7 +216,15 @@
       addSenderKey: "Adicionar esta chave aos contactos",
       senderKeyAdded: "Chave do contacto adicionada",
       noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências.",
-      otherIdentities: "Outras identidades desta chave:"
+      otherIdentities: "Outras identidades desta chave:",
+      sendingTitle: "Mensagens enviadas",
+      signOutgoing: "Assinar o que eu enviar",
+      encryptOutgoing: "Cifrar quando todos os destinatários têm chave",
+      sendPlainTitle: "Enviar como texto simples?",
+      sendPlainHint: "Assinar e cifrar substituem o corpo por um bloco OpenPGP, pelo que a formatação se perde.",
+      sendAttachHint: "Os anexos seguem sem cifra: o SOGo junta-os depois deste ponto.",
+      proceed: "Enviar mesmo assim",
+      "send-cancelled": "O envio foi cancelado."
     },
     de: {
       locked: "PGP gesperrt",
@@ -265,7 +289,15 @@
       addSenderKey: "Diesen Schlüssel zu Kontakten hinzufügen",
       senderKeyAdded: "Kontaktschlüssel hinzugefügt",
       noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu.",
-      otherIdentities: "Weitere Identitäten dieses Schlüssels:"
+      otherIdentities: "Weitere Identitäten dieses Schlüssels:",
+      sendingTitle: "Ausgehende Nachrichten",
+      signOutgoing: "Meine Nachrichten signieren",
+      encryptOutgoing: "Verschlüsseln, wenn alle Empfänger einen Schlüssel haben",
+      sendPlainTitle: "Als reinen Text senden?",
+      sendPlainHint: "Signieren und Verschlüsseln ersetzen den Text durch einen OpenPGP-Block, die Formatierung geht verloren.",
+      sendAttachHint: "Anhänge gehen unverschlüsselt: SOGo fügt sie erst danach hinzu.",
+      proceed: "Trotzdem senden",
+      "send-cancelled": "Das Senden wurde abgebrochen."
     },
     ru: {
       locked: "PGP заблокирован",
@@ -330,7 +362,15 @@
       addSenderKey: "Добавить этот ключ в контакты",
       senderKeyAdded: "Ключ контакта добавлен",
       noSenderKey: "В сообщении нет ключа. Добавьте его в настройках.",
-      otherIdentities: "Другие личности этого ключа:"
+      otherIdentities: "Другие личности этого ключа:",
+      sendingTitle: "Исходящие сообщения",
+      signOutgoing: "Подписывать мои письма",
+      encryptOutgoing: "Шифровать, когда у всех получателей есть ключ",
+      sendPlainTitle: "Отправить обычным текстом?",
+      sendPlainHint: "Подпись и шифрование заменяют тело письма блоком OpenPGP, форматирование теряется.",
+      sendAttachHint: "Вложения уйдут незашифрованными: SOGo добавляет их позже.",
+      proceed: "Всё равно отправить",
+      "send-cancelled": "Отправка отменена."
     }
   };
 
@@ -339,11 +379,15 @@
     ".mailcow-pgp-badges{gap:6px;padding:4px 8px}",
     ".mailcow-pgp-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px 2px 6px;",
     "border:1px solid;border-radius:12px;font-size:12px;line-height:20px;white-space:nowrap}",
-    ".mailcow-pgp-badge md-icon{margin:0;min-width:16px;width:16px;height:16px;font-size:16px}"
+    ".mailcow-pgp-badge>span{display:block;line-height:16px}",
+    ".mailcow-pgp-badge md-icon{margin:0;padding:0;min-width:16px;width:16px;height:16px;",
+    "font-size:16px;line-height:16px;display:flex;align-items:center;justify-content:center;",
+    "vertical-align:middle}"
   ].join("");
 
   var VAULT_PREFIX = "mailcow.pgp.vault.";
   var CONTACTS_PREFIX = "mailcow.pgp.contacts.";
+  var SENDING_PREFIX = "mailcow.pgp.sending.";
   var MAX_KEY_BYTES = 512 * 1024;
   var MIN_VAULT_PASSWORD = 10;
   var MESSAGE_URL = /\/Mail\/([^/?#]+)\/([^/?#]+)\/(\d+)(?:\/(?:view|viewsource))?(?:[?#]|$)/;
@@ -477,6 +521,31 @@
     "</div>"
   ].join("");
 
+  var SENDING_TEMPLATE = [
+    '<div layout="column" class="mailcow-pgp-sending">',
+    '<h4 class="md-subhead">{{ pgp.text.sendingTitle }}</h4>',
+    '<md-switch ng-model="pgp.settings.sign" ng-change="pgp.save()">',
+    "{{ pgp.text.signOutgoing }}</md-switch>",
+    '<md-switch ng-model="pgp.settings.encrypt" ng-change="pgp.save()">',
+    "{{ pgp.text.encryptOutgoing }}</md-switch>",
+    "</div>"
+  ].join("");
+
+  var CONFIRM_TEMPLATE = [
+    '<md-dialog aria-label="{{ pgp.text.sendPlainTitle }}" flex="40" flex-xs="100">',
+    '<md-dialog-content class="md-dialog-content">',
+    '<h2 class="md-title">{{ pgp.text.sendPlainTitle }}</h2>',
+    "<p>{{ pgp.text.sendPlainHint }}</p>",
+    '<p ng-if="pgp.hasAttachments">{{ pgp.text.sendAttachHint }}</p>',
+    "</md-dialog-content>",
+    "<md-dialog-actions>",
+    '<md-button ng-click="pgp.cancel()">{{ pgp.text.cancel }}</md-button>',
+    '<md-button class="md-primary md-raised" ng-click="pgp.confirm()">',
+    "{{ pgp.text.proceed }}</md-button>",
+    "</md-dialog-actions>",
+    "</md-dialog>"
+  ].join("");
+
   var UNLOCK_TEMPLATE = [
     '<md-dialog aria-label="{{ pgp.text.unlockTitle }}" flex="40" flex-sm="80" flex-xs="100">',
     '<md-dialog-content class="md-dialog-content">',
@@ -593,6 +662,32 @@
       return true;
     } catch (error) {
       return false;
+    }
+  }
+
+  function sendingKey() {
+    return SENDING_PREFIX + (window.UserLogin || "");
+  }
+
+  function readSending() {
+    var defaults = { sign: true, encrypt: true };
+    try {
+      var stored = JSON.parse(window.localStorage.getItem(sendingKey()) || "null");
+      if (!stored || typeof stored !== "object") return defaults;
+      return {
+        sign: stored.sign !== false,
+        encrypt: stored.encrypt !== false
+      };
+    } catch (error) {
+      return defaults;
+    }
+  }
+
+  function writeSending(settings) {
+    try {
+      window.localStorage.setItem(sendingKey(), JSON.stringify(settings));
+    } catch (error) {
+      return;
     }
   }
 
@@ -994,11 +1089,33 @@
     note("preferences: contacts panel installed");
   }
 
+  function buildSending(host) {
+    if (host.querySelector(".mailcow-pgp-sending")) return;
+
+    var $compile = service("$compile");
+    var $rootScope = service("$rootScope");
+    if (!$compile || !$rootScope) return;
+
+    var scope = $rootScope.$new(true);
+    scope.pgp = {
+      text: labels,
+      settings: readSending(),
+      save: function () {
+        writeSending(scope.pgp.settings);
+      }
+    };
+
+    host.appendChild($compile(window.angular.element(SENDING_TEMPLATE))(scope)[0]);
+    scope.$applyAsync();
+    note("preferences: sending panel installed");
+  }
+
   function waitForPreferences() {
     var host = document.querySelector(PREFS_HOST);
     if (host) {
       buildPreferences(host);
       buildContacts(host);
+      buildSending(host);
       return;
     }
     var observer = new MutationObserver(function () {
@@ -1007,6 +1124,7 @@
       observer.disconnect();
       buildPreferences(target);
       buildContacts(target);
+      buildSending(target);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
@@ -1163,24 +1281,81 @@
     );
   }
 
-  function applyRealSubject(body, subject) {
-    if (!subject || !window.angular) return;
-
-    var header = document.querySelector("h5.sg-md-headline") ||
-      (body.closest && body.closest("md-card") && body.closest("md-card").querySelector("h5"));
-    if (!header) return;
-
-    var scope = window.angular.element(header).scope();
-    if (!scope || !scope.viewer || !scope.viewer.message) return;
-    if (!core.isObscuredSubject(scope.viewer.message.subject)) return;
-
-    scope.viewer.message.subject = subject;
-    scope.$applyAsync();
-    note("real subject applied");
+  function findScope(root, test) {
+    var queue = [root];
+    while (queue.length) {
+      var scope = queue.shift();
+      try {
+        if (test(scope)) return scope;
+      } catch (error) {
+        return null;
+      }
+      for (var child = scope.$$childHead; child; child = child.$$nextSibling) {
+        queue.push(child);
+      }
+    }
+    return null;
   }
 
-  function renderInPlace(result) {
-    var body = document.querySelector("div.msg-body");
+  function applyRealSubject(body, subject) {
+    if (!subject) return;
+
+    var $rootScope = service("$rootScope");
+    var scope = $rootScope
+      ? findScope($rootScope, function (candidate) {
+          return Boolean(candidate.viewer && candidate.viewer.message);
+        })
+      : null;
+
+    if (scope) {
+      if (!core.isObscuredSubject(scope.viewer.message.subject)) return;
+      scope.viewer.message.subject = subject;
+      scope.$applyAsync();
+      note("real subject applied to the model");
+      return;
+    }
+
+    var card = (body.closest && body.closest("md-card")) || document;
+    var header = card.querySelector("h5.sg-md-headline") || card.querySelector("h5");
+    if (!header) {
+      note("subject: no place to put it");
+      return;
+    }
+    if (!core.isObscuredSubject(header.textContent)) return;
+    header.textContent = subject;
+    note("real subject applied to the header");
+  }
+
+  function waitForBody(timeout) {
+    return new Promise(function (resolve) {
+      var found = document.querySelector("div.msg-body");
+      if (found) {
+        resolve(found);
+        return;
+      }
+
+      var settled = false;
+      var observer = new MutationObserver(function () {
+        var target = document.querySelector("div.msg-body");
+        if (!target || settled) return;
+        settled = true;
+        observer.disconnect();
+        window.clearTimeout(timer);
+        resolve(target);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        observer.disconnect();
+        note("message body never appeared, falling back to a dialog");
+        resolve(null);
+      }, timeout);
+    });
+  }
+
+  function renderInPlace(result, body) {
     var $compile = service("$compile");
     var $rootScope = service("$rootScope");
     if (!body || !$compile || !$rootScope) return false;
@@ -1242,9 +1417,11 @@
     return true;
   }
 
-  function showResult(result) {
+  async function showResult(result) {
     releaseBlobUrls();
-    if (renderInPlace(result)) return Promise.resolve();
+
+    var body = await waitForBody(4000);
+    if (body && renderInPlace(result, body)) return;
 
     return showDialog(MESSAGE_TEMPLATE, {
       text: labels,
@@ -1437,6 +1614,110 @@
     );
   }
 
+  function htmlToText(html) {
+    var holder = document.createElement("div");
+    holder.innerHTML = String(html);
+    return holder.textContent || "";
+  }
+
+  function confirmPlainSend(hasAttachments) {
+    var $mdDialog = service("$mdDialog");
+    if (!$mdDialog) return Promise.resolve(true);
+
+    var state = { text: labels, hasAttachments: hasAttachments };
+    state.confirm = function () {
+      $mdDialog.hide(true);
+    };
+    return showDialog(CONFIRM_TEMPLATE, state).then(function (result) {
+      return result === true;
+    });
+  }
+
+  async function ownPublicKey() {
+    return unlockedKeys.length ? unlockedKeys[0].toPublic() : null;
+  }
+
+  async function prepareOutgoing(message) {
+    var settings = readSending();
+    if (!settings.sign && !settings.encrypt) return;
+
+    var recipients = []
+      .concat(message.to || [], message.cc || [], message.bcc || [])
+      .filter(Boolean);
+    if (!recipients.length) return;
+
+    var match = core.keysForRecipients(recipients, readContacts());
+    var wantEncrypt =
+      settings.encrypt && match.found.length > 0 && match.missing.length === 0;
+    var wantSign = settings.sign;
+    if (!wantEncrypt && !wantSign) return;
+
+    if (!unlockedKeys.length) {
+      if (!readVault()) {
+        note("outgoing: no key stored, sending as is");
+        return;
+      }
+      if (!(await askForPassword())) throw { code: "send-cancelled" };
+    }
+
+    var hasAttachments = Boolean(
+      (message.attachmentAttrs && message.attachmentAttrs.length) ||
+        (message.attachments && message.attachments.length)
+    );
+    if (message.isHTML || (wantEncrypt && hasAttachments)) {
+      if (!(await confirmPlainSend(wantEncrypt && hasAttachments))) {
+        throw { code: "send-cancelled" };
+      }
+    }
+
+    var text = message.isHTML ? htmlToText(message.text || "") : String(message.text || "");
+
+    if (wantEncrypt) {
+      var recipientKeys = [];
+      for (var index = 0; index < match.found.length; index++) {
+        recipientKeys.push(
+          await window.openpgp.readKey({ armoredKey: match.found[index].armored })
+        );
+      }
+      var mine = await ownPublicKey();
+      if (mine) recipientKeys.push(mine);
+
+      message.text = await core.encryptText(
+        text,
+        recipientKeys,
+        wantSign ? unlockedKeys[0] : null
+      );
+      note("outgoing: encrypted to " + recipientKeys.length + " keys");
+    } else {
+      message.text = await core.signText(text, unlockedKeys[0]);
+      note("outgoing: signed");
+    }
+
+    message.isHTML = 0;
+  }
+
+  function observeSending() {
+    var Message = service("Message");
+    if (!Message || !Message.prototype || Message.prototype.$mailcowPgpWrapped) return false;
+
+    var $q = service("$q");
+    var original = Message.prototype.$send;
+    if (typeof original !== "function") return false;
+
+    Message.prototype.$send = function () {
+      var self = this;
+      var args = arguments;
+      var started = prepareOutgoing(self);
+      var chained = $q ? $q.when(started) : Promise.resolve(started);
+      return chained.then(function () {
+        return original.apply(self, args);
+      });
+    };
+    Message.prototype.$mailcowPgpWrapped = true;
+    note("outgoing: send wrapped");
+    return true;
+  }
+
   function isPreferencesPage() {
     return /\/preferences/i.test(window.location.pathname || "");
   }
@@ -1473,6 +1754,9 @@
 
     observeRequests();
     observeLocation();
+    if (!observeSending()) {
+      window.setTimeout(observeSending, 2000);
+    }
     window.addEventListener("beforeunload", function () {
       unlockedKeys = [];
       releaseBlobUrls();
