@@ -27,7 +27,31 @@ if ($iam_provider){
   }
 }
 
+function captcha_login_guard() {
+  global $redis;
+
+  if (captcha_guard($GLOBALS['CAPTCHA'], $_POST, get_remote_ip())) {
+    return true;
+  }
+
+  $_SESSION['return'][] = array(
+    'type' => 'danger',
+    'log' => array(__FUNCTION__),
+    'msg' => 'captcha_failed'
+  );
+
+  if (isset($redis)) {
+    $redis->publish("F2B_CHANNEL", "mailcow UI: Captcha failed by " . get_remote_ip());
+  }
+  error_log("mailcow UI: Captcha failed by " . get_remote_ip());
+  return false;
+}
+
 if (isset($_POST["pw_reset_request"]) && !empty($_POST['username'])) {
+  if (!captcha_login_guard()) {
+    header("Location: /reset-password");
+    exit;
+  }
   reset_password("issue", $_POST['username']);
   header("Location: /");
   exit;
@@ -132,6 +156,10 @@ if (isset($_GET["cancel_tfa_setup"])) {
 }
 
 if (isset($_POST["login_user"]) && isset($_POST["pass_user"])) {
+  if (!captcha_login_guard()) {
+    header("Location: /");
+    exit;
+  }
   $login_user = strtolower(trim($_POST["login_user"]));
   $as = check_login($login_user, $_POST["pass_user"], array("role" => "user", "service" => "MAILCOWUI"));
 

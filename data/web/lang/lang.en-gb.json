@@ -416,6 +416,7 @@
     },
     "danger": {
         "access_denied": "Access denied or invalid form data",
+        "captcha_failed": "Captcha verification failed. Please try again.",
         "tfa_removal_blocked": "Two-factor authentication cannot be removed because it is required for your account.",
         "alias_domain_invalid": "Alias domain %s is invalid",
         "alias_empty": "Alias address must not be empty",

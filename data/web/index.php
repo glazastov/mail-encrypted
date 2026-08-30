@@ -57,6 +57,7 @@ $template_data = [
   'login_delay' => @$_SESSION['ldelay'],
   'has_iam_sso' => $has_iam_sso,
   'custom_login' => $custom_login,
+  'captcha' => captcha_template_data($CAPTCHA),
 ];
 
 $js_minifier->add('/web/js/site/index.js');

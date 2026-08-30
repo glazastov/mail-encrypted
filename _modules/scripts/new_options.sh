@@ -61,6 +61,9 @@ adapt_new_options() {
   "ACME_DNS_PROVIDER"
   "ACME_ACCOUNT_EMAIL"
   "ACME_PROFILE"
+  "CAPTCHA_PROVIDER"
+  "CAPTCHA_SITE_KEY"
+  "CAPTCHA_SECRET_KEY"
   "ACME_RENEW_BEFORE"
   "ACME_CHECK_INTERVAL"
   "PGP_STORAGE_DEBUG"
@@ -313,6 +316,19 @@ adapt_new_options() {
         ACME_ACCOUNT_EMAIL)
             echo '# Account email for ACME DNS-01 challenge registration' >> mailcow.conf
             echo 'ACME_ACCOUNT_EMAIL=me@example.com' >> mailcow.conf
+            ;;
+        CAPTCHA_PROVIDER)
+            echo '# Captcha on the login and password reset forms.' >> mailcow.conf
+            echo '# Providers: hcaptcha, recaptcha, turnstile. Leave empty to disable.' >> mailcow.conf
+            echo '# Setting a provider without both keys blocks logins rather than silently' >> mailcow.conf
+            echo '# turning the captcha off, so fix mailcow.conf if you get locked out.' >> mailcow.conf
+            echo 'CAPTCHA_PROVIDER=' >> mailcow.conf
+            ;;
+        CAPTCHA_SITE_KEY)
+            echo 'CAPTCHA_SITE_KEY=' >> mailcow.conf
+            ;;
+        CAPTCHA_SECRET_KEY)
+            echo 'CAPTCHA_SECRET_KEY=' >> mailcow.conf
             ;;
         ACME_PROFILE)
             echo '# ACME certificate profile requested from the CA. Leave empty for the CA default.' >> mailcow.conf
