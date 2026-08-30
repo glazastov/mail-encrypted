@@ -30,8 +30,8 @@ $(document).ready(function() {
   // create host cpu and mem charts
   createHostCpuAndMemChart();
   // check for new version
-  if (mailcow_info.branch === "master" && mailcow_cc_role === "admin"){
-    check_update(mailcow_info.version_tag, mailcow_info.project_url);
+  if (mailcow_cc_role === "admin"){
+    check_update();
   }
   $("#mailcow_version").click(function(){
     if (mailcow_cc_role !== "admin" && mailcow_cc_role !== "domainadmin" || mailcow_info.branch !== "master")
@@ -1674,36 +1674,41 @@ function createHostCpuAndMemChart(){
     options: optionsMem
   });
 }
-// check for mailcow updates
-function check_update(current_version, github_repo_url){
-  if (!current_version || !github_repo_url) return false;
-
-
+// check for updates, both in our own repository and in upstream mailcow
+function check_update(){
   window.fetch("/inc/ajax/update_check.php", {method:'GET',cache:'no-cache'}).then(function(response) {
     if (!response.ok) throw new Error("update check returned " + response.status);
     return response.json();
   }).then(function(data) {
-    if (data.status === "no_update") {
-      $("#mailcow_update").removeClass("text-warning text-danger").addClass("text-success");
-      $("#mailcow_update").html("<b>" + lang_debug.no_update_available + "</b>");
-    } else if (data.status === "update_available") {
-      $("#mailcow_update").removeClass("text-danger text-success").addClass("text-warning");
-      $("#mailcow_update").html(lang_debug.update_available + ` <a href="#" id="mailcow_update_changelog">`+data.latest_tag+`</a>`);
-      $("#mailcow_update_changelog").click(function(){
-        if (mailcow_cc_role !== "admin" && mailcow_cc_role !== "domainadmin")
-          return;
+    if (data.status !== "ok") throw new Error(data.message || "update check failed");
 
-        showVersionModal("New Release " + data.latest_tag, data.latest_tag);
-      })
-    } else {
-      throw new Error(data.message || "update check failed");
-    }
+    $("#mailcow_update").html(
+      render_update_line(data.own) + render_update_line(data.upstream)
+    );
   }).catch(err => {
-    // err
     console.log(err);
-    $("#mailcow_update").removeClass("text-success text-warning").addClass("text-danger");
-    $("#mailcow_update").html("<b>"+ lang_debug.update_failed +"</b>");
+    $("#mailcow_update").html('<span class="d-block text-danger"><b>' + lang_debug.update_failed + '</b></span>');
   });
+}
+// one repository, one line: who was checked and what came back
+function render_update_line(source){
+  if (!source || !source.repo) return '';
+
+  var label = '<span class="text-muted">' + escapeHtml(source.repo) + ':</span> ';
+
+  if (source.status === "no_update")
+    return '<span class="d-block text-success">' + label + '<b>' + lang_debug.no_update_available + '</b></span>';
+
+  if (source.status === "update_available"){
+    // A fork without releases reports commits instead of a tag
+    var what = source.tag ? source.tag : (source.commits + ' commits');
+    var link = source.url
+      ? '<a href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener">' + escapeHtml(what) + '</a>'
+      : escapeHtml(what);
+    return '<span class="d-block text-warning">' + label + lang_debug.update_available + ' ' + link + '</span>';
+  }
+
+  return '<span class="d-block text-danger">' + label + lang_debug.update_failed + '</span>';
 }
 // show version changelog modal
 function showVersionModal(title, version){
@@ -1725,6 +1730,18 @@ function showVersionModal(title, version){
         </span>
       `);
 
+      new bootstrap.Modal(document.getElementById("showVersionModal"), {
+        backdrop: 'static',
+        keyboard: false
+      }).show();
+    },
+    // A fork that publishes no releases has no changelog to show - link to the tag instead
+    error: function () {
+      var url = 'https://github.com/' + mailcow_info.project_owner + '/' + mailcow_info.project_repo + '/tree/' + version;
+      $('#showVersionModal').find(".modal-title").html(title);
+      $('#showVersionModal').find(".modal-body").html(
+        '<span><b>Github Link:</b> <a target="_blank" rel="noopener" href="' + url + '">' + version + '</a></span>'
+      );
       new bootstrap.Modal(document.getElementById("showVersionModal"), {
         backdrop: 'static',
         keyboard: false
