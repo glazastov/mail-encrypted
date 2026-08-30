@@ -7,6 +7,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
+  var OBSCURED_SUBJECT = "[...]";
   var ARMOR = /-----BEGIN PGP MESSAGE-----[\s\S]*?-----END PGP MESSAGE-----/;
   var STORAGE_MARKER = /^x-mailcow-pgp-storage:\s*encrypted/im;
   var PGP_MIME = /^content-type:\s*multipart\/encrypted[\s\S]{0,400}?application\/pgp-encrypted/im;
@@ -46,6 +47,11 @@
     function findArmoredMessage(text) {
       var match = ARMOR.exec(unescapeSource(text));
       return match ? match[0] : null;
+    }
+
+    function isObscuredSubject(text) {
+      var value = String(text === null || text === undefined ? "" : text).trim();
+      return value === "" || value === OBSCURED_SUBJECT;
     }
 
     function soFolder(name) {
@@ -339,6 +345,7 @@
       classifySource: classifySource,
       pickUserId: pickUserId,
       soFolder: soFolder,
+      isObscuredSubject: isObscuredSubject,
       createCache: createCache,
       shouldHandleMessage: shouldHandleMessage,
       findSenderKeys: findSenderKeys,
