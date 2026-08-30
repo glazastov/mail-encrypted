@@ -408,3 +408,47 @@ describe("finding a sender key inside the message", () => {
     expect(found).toHaveLength(0);
   });
 });
+
+describe("deciding whether to process an opened message", () => {
+  test("handles a message the first time it is opened", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+
+  test("does not redo work already on screen", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "A", rendered: true, failed: {} })).toBe(
+      false
+    );
+  });
+
+  test("handles a message again after visiting a plain one", () => {
+    let state = { lastHandled: "", rendered: false, failed: {} };
+
+    expect(core.shouldHandleMessage("A", state)).toBe(true);
+    state = { lastHandled: "A", rendered: true, failed: {} };
+
+    expect(core.shouldHandleMessage("B", state)).toBe(true);
+    state = { lastHandled: "B", rendered: false, failed: {} };
+
+    expect(core.shouldHandleMessage("A", state)).toBe(true);
+  });
+
+  test("redraws when SOGo replaced our block without a new request", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "A", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+
+  test("does not retry a message that already failed", () => {
+    expect(
+      core.shouldHandleMessage("A", { lastHandled: "B", rendered: false, failed: { A: true } })
+    ).toBe(false);
+  });
+
+  test("retries once the failure memo is cleared", () => {
+    expect(core.shouldHandleMessage("A", { lastHandled: "B", rendered: false, failed: {} })).toBe(
+      true
+    );
+  });
+});

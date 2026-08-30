@@ -48,6 +48,13 @@
       return match ? match[0] : null;
     }
 
+    function shouldHandleMessage(token, state) {
+      if (!token) return false;
+      if (state.failed && state.failed[token]) return false;
+      if (state.rendered && token === state.lastHandled) return false;
+      return true;
+    }
+
     function classifySource(text) {
       var source = unescapeSource(text);
       if (STORAGE_MARKER.test(source)) return "storage";
@@ -274,6 +281,7 @@
       findArmoredMessage: findArmoredMessage,
       isEncryptedSource: isEncryptedSource,
       classifySource: classifySource,
+      shouldHandleMessage: shouldHandleMessage,
       findSenderKeys: findSenderKeys,
       readPublicKeys: readPublicKeys,
       inspectPrivateKey: inspectPrivateKey,
