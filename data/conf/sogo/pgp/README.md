@@ -32,11 +32,25 @@ The reading path is:
    remote trackers do not load and no script in a message can run. A banner
    above it reports the signature.
 
+## What the banner says
+
+The storage filter stamps `X-Mailcow-PGP-Storage: encrypted` on the mail it
+encrypts itself, and passes mail that arrived already encrypted through
+untouched. That single header tells the two cases apart, and the banner says
+which one it is: mail encrypted only at rest reached the server in the clear,
+which is a materially weaker guarantee than mail the sender encrypted
+end to end. Both are reported, never conflated.
+
 ## Signatures and contact keys
 
 Contact public keys are added in the same preferences page and kept as plain
 JSON in `localStorage` - they are public, so nothing is gained by sealing them,
 and a pasted *private* key is refused outright rather than stored there.
+
+When a signature carries a key id nobody in the contact list matches, the
+message itself is searched for the sender's key - an `application/pgp-keys`
+attachment or an `Autocrypt` header - and if one is found it is offered for
+adding to contacts with one click.
 
 The banner distinguishes four outcomes: a good signature from a known contact,
 a signature that does not match, a signature with no matching contact key, and
@@ -53,6 +67,12 @@ until the tab is closed. The vault password itself is never stored.
 
 An envelope that claims weaker parameters than the current minimum is refused
 rather than opened, so a downgraded envelope cannot be forced through.
+
+Logging out clears everything: the sealed key and the contact list are each
+overwritten with random data of at least their own length, three times, before
+being removed, and the unlocked key is dropped from memory. This overwrites the
+stored *values*; it cannot promise anything about what the browser left on
+disk underneath.
 
 ## Updating the vendored libraries
 

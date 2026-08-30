@@ -13,6 +13,7 @@
   var ITERATIONS = 600000;
   var SALT_BYTES = 16;
   var IV_BYTES = 12;
+  var OVERWRITE_PASSES = 3;
 
   function fail(code, message, cause) {
     var error = new Error(message);
@@ -141,7 +142,38 @@
       return decoder.decode(plaintext);
     }
 
-    return { seal: seal, open: open, iterations: ITERATIONS };
+    function wipe(storage, names) {
+      var cleared = 0;
+
+      (names || []).forEach(function (name) {
+        var existing;
+        try {
+          existing = storage.getItem(name);
+        } catch (error) {
+          existing = null;
+        }
+        if (existing === null || existing === undefined) return;
+
+        var length = Math.max(String(existing).length, 64);
+        for (var pass = 0; pass < OVERWRITE_PASSES; pass++) {
+          try {
+            storage.setItem(name, toBase64(crypto.getRandomValues(new Uint8Array(length))));
+          } catch (error) {
+            break;
+          }
+        }
+        try {
+          storage.removeItem(name);
+          cleared++;
+        } catch (error) {
+          return;
+        }
+      });
+
+      return cleared;
+    }
+
+    return { seal: seal, open: open, wipe: wipe, iterations: ITERATIONS };
   }
 
   return { create: create };

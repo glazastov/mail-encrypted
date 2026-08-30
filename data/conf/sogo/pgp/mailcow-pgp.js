@@ -62,7 +62,14 @@
       sigUnknown: "Signed, but no matching contact key",
       sigNone: "Encrypted, not signed",
       signedBy: "Signed by",
-      "not-a-public-key": "That is a private key. Only public keys belong here."
+      "not-a-public-key": "That is a private key. Only public keys belong here.",
+      encStorage: "Encrypted on the server only",
+      encStorageHint: "It reached the server in the clear and was encrypted at rest.",
+      encE2E: "End-to-end encrypted",
+      encE2EHint: "The sender encrypted it before sending.",
+      addSenderKey: "Add this key to contacts",
+      senderKeyAdded: "Contact key added",
+      noSenderKey: "The message carries no key. Add it in the preferences."
     },
     "pt-br": {
       locked: "PGP bloqueado",
@@ -119,7 +126,14 @@
       sigUnknown: "Assinada, mas sem chave de contato correspondente",
       sigNone: "Criptografada, sem assinatura",
       signedBy: "Assinada por",
-      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas."
+      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas.",
+      encStorage: "Criptografada apenas no servidor",
+      encStorageHint: "Chegou em texto claro ao servidor e foi criptografada em repouso.",
+      encE2E: "Criptografada de ponta a ponta",
+      encE2EHint: "O remetente criptografou antes de enviar.",
+      addSenderKey: "Adicionar esta chave aos contatos",
+      senderKeyAdded: "Chave do contato adicionada",
+      noSenderKey: "A mensagem não traz a chave. Adicione nas preferências."
     },
     "pt-pt": {
       locked: "PGP bloqueado",
@@ -176,7 +190,14 @@
       sigUnknown: "Assinada, mas sem chave de contacto correspondente",
       sigNone: "Cifrada, sem assinatura",
       signedBy: "Assinada por",
-      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas."
+      "not-a-public-key": "Isso é uma chave privada. Aqui só entram chaves públicas.",
+      encStorage: "Cifrada apenas no servidor",
+      encStorageHint: "Chegou em claro ao servidor e foi cifrada em repouso.",
+      encE2E: "Cifrada de ponta a ponta",
+      encE2EHint: "O remetente cifrou-a antes de enviar.",
+      addSenderKey: "Adicionar esta chave aos contactos",
+      senderKeyAdded: "Chave do contacto adicionada",
+      noSenderKey: "A mensagem não traz a chave. Adicione-a nas preferências."
     },
     de: {
       locked: "PGP gesperrt",
@@ -233,7 +254,14 @@
       sigUnknown: "Signiert, aber kein passender Kontaktschlüssel",
       sigNone: "Verschlüsselt, nicht signiert",
       signedBy: "Signiert von",
-      "not-a-public-key": "Das ist ein privater Schlüssel. Hier gehören nur öffentliche hin."
+      "not-a-public-key": "Das ist ein privater Schlüssel. Hier gehören nur öffentliche hin.",
+      encStorage: "Nur auf dem Server verschlüsselt",
+      encStorageHint: "Sie erreichte den Server im Klartext und wurde erst dort verschlüsselt.",
+      encE2E: "Ende-zu-Ende verschlüsselt",
+      encE2EHint: "Der Absender hat sie vor dem Senden verschlüsselt.",
+      addSenderKey: "Diesen Schlüssel zu Kontakten hinzufügen",
+      senderKeyAdded: "Kontaktschlüssel hinzugefügt",
+      noSenderKey: "Die Nachricht enthält keinen Schlüssel. Fügen Sie ihn in den Einstellungen hinzu."
     },
     ru: {
       locked: "PGP заблокирован",
@@ -290,7 +318,14 @@
       sigUnknown: "Подписано, но нет подходящего ключа контакта",
       sigNone: "Зашифровано, без подписи",
       signedBy: "Подписал",
-      "not-a-public-key": "Это закрытый ключ. Сюда добавляются только открытые."
+      "not-a-public-key": "Это закрытый ключ. Сюда добавляются только открытые.",
+      encStorage: "Зашифровано только на сервере",
+      encStorageHint: "Пришло на сервер открытым текстом и было зашифровано при хранении.",
+      encE2E: "Сквозное шифрование",
+      encE2EHint: "Отправитель зашифровал сообщение до отправки.",
+      addSenderKey: "Добавить этот ключ в контакты",
+      senderKeyAdded: "Ключ контакта добавлен",
+      noSenderKey: "В сообщении нет ключа. Добавьте его в настройках."
     }
   };
 
@@ -401,10 +436,19 @@
 
   var INPLACE_TEMPLATE = [
     '<div class="mailcow-pgp-message" layout="column">',
+    '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.encryption.color}">',
+    "<md-icon>{{ pgp.encryption.icon }}</md-icon>",
+    '<span class="md-body-2">{{ pgp.encryption.text }}</span>',
+    '<span class="md-caption">&nbsp;- {{ pgp.encryption.hint }}</span>',
+    "</div>",
     '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.signature.color}">',
     "<md-icon>{{ pgp.signature.icon }}</md-icon>",
     '<span class="md-body-2">{{ pgp.signature.text }}</span>',
     '<span class="md-caption" ng-if="pgp.signature.who">&nbsp;- {{ pgp.signature.who }}</span>',
+    '<md-button class="md-raised md-primary" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
+    ' ng-click="pgp.addSenderKey()">{{ pgp.text.addSenderKey }}</md-button>',
+    '<span class="md-caption" ng-if="pgp.senderKeyAdded">{{ pgp.text.senderKeyAdded }}</span>',
+    '<span class="md-caption" ng-if="pgp.showNoSenderKey">{{ pgp.text.noSenderKey }}</span>',
     "</div>",
     '<iframe class="mailcow-pgp-frame" sandbox="" referrerpolicy="no-referrer"></iframe>',
     '<div layout="row" layout-wrap="layout-wrap" ng-if="pgp.attachments.length">',
@@ -564,6 +608,39 @@
       }
     }
     return parsed;
+  }
+
+  function describeEncryption(kind) {
+    if (kind === "end-to-end") {
+      return {
+        icon: "lock",
+        color: "#2e7d32",
+        text: label("encE2E"),
+        hint: label("encE2EHint")
+      };
+    }
+    return {
+      icon: "storage",
+      color: "#ef6c00",
+      text: label("encStorage"),
+      hint: label("encStorageHint")
+    };
+  }
+
+  function addContactKeys(found) {
+    var contacts = readContacts();
+    found.forEach(function (key) {
+      var existing = contacts.filter(function (contact) {
+        return contact.fingerprint === key.fingerprint;
+      })[0];
+      if (existing) {
+        existing.armored = key.armored;
+        existing.userIds = key.userIds;
+      } else {
+        contacts.push(key);
+      }
+    });
+    return writeContacts(contacts);
   }
 
   function describeSignature(signature) {
@@ -1021,11 +1098,41 @@
     });
 
     var scope = $rootScope.$new(true);
+    var signature = result.signature || { status: "none" };
     scope.pgp = {
       text: labels,
-      signature: describeSignature(result.signature || { status: "none" }),
-      attachments: attachmentLinks(result)
+      encryption: describeEncryption(result.encryption),
+      signature: describeSignature(signature),
+      attachments: attachmentLinks(result),
+      senderKey: null,
+      senderKeyAdded: false,
+      showNoSenderKey: false,
+
+      addSenderKey: function () {
+        if (!scope.pgp.senderKey) return;
+        if (addContactKeys([scope.pgp.senderKey])) {
+          scope.pgp.senderKeyAdded = true;
+          scope.$applyAsync();
+        }
+      }
     };
+
+    if (signature.status === "unknown-key") {
+      core
+        .findSenderKeys(result)
+        .then(function (found) {
+          var match = found.filter(function (key) {
+            return !signature.keyId || key.fingerprint.slice(-16) === signature.keyId;
+          })[0];
+          scope.pgp.senderKey = match || found[0] || null;
+          scope.pgp.showNoSenderKey = !scope.pgp.senderKey;
+          scope.$applyAsync();
+        })
+        .catch(function () {
+          scope.pgp.showNoSenderKey = true;
+          scope.$applyAsync();
+        });
+    }
 
     var srcdoc = frameDocument(result);
     var compiled = $compile(window.angular.element(INPLACE_TEMPLATE))(scope);
@@ -1154,12 +1261,44 @@
       });
   }
 
+  function wipeEverything() {
+    unlockedKeys = [];
+    releaseBlobUrls();
+    clearInPlace();
+    try {
+      vault.wipe(window.localStorage, [vaultKey(), contactsKey()]);
+      note("wiped stored key material");
+    } catch (error) {
+      note("wipe failed");
+    }
+  }
+
+  function observeLogout() {
+    var previous = window.mc_logout;
+    window.mc_logout = function () {
+      wipeEverything();
+      if (typeof previous === "function") return previous.apply(this, arguments);
+      return undefined;
+    };
+
+    document.addEventListener(
+      "click",
+      function (event) {
+        var anchor = event.target && event.target.closest && event.target.closest("a[href]");
+        if (!anchor) return;
+        if (!/logoff|logout/i.test(anchor.getAttribute("href") || "")) return;
+        wipeEverything();
+      },
+      true
+    );
+  }
+
   function isPreferencesPage() {
     return /\/preferences/i.test(window.location.pathname || "");
   }
 
   function install() {
-    window.MailcowPGP = { selfTest: selfTest, trace: trace };
+    window.MailcowPGP = { selfTest: selfTest, trace: trace, wipe: null };
 
     if (typeof window.MailcowPGPCore === "undefined") return;
     if (typeof window.MailcowPGPVault === "undefined") return;
@@ -1173,10 +1312,13 @@
       PostalMime: window.MailcowPostalMime
     });
     vault = window.MailcowPGPVault.create({ crypto: window.crypto });
+    window.MailcowPGP.wipe = wipeEverything;
 
     var style = document.createElement("style");
     style.textContent = STYLE;
     document.head.appendChild(style);
+
+    observeLogout();
 
     if (isPreferencesPage()) {
       waitForPreferences();

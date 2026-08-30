@@ -327,3 +327,84 @@ describe("signature verification", () => {
     expect(result.signature.status).toBe("none");
   });
 });
+
+describe("telling storage encryption apart from end to end", () => {
+  test("a message our own filter encrypted is storage only", async () => {
+    const raw = await storedMessage("From: a@b.c\nSubject: Hi\n\nbody\n");
+    expect(raw).toInclude("X-Mailcow-PGP-Storage");
+    expect(core.classifySource(raw)).toBe("storage");
+  });
+
+  test("a message the sender encrypted is end to end", async () => {
+    const raw = await storedMessage("From: a@b.c\nSubject: Hi\n\nbody\n");
+    const senderEncrypted = raw
+      .split("\n")
+      .filter((line) => !/^X-Mailcow-PGP-Storage:/i.test(line))
+      .join("\n");
+    expect(core.classifySource(senderEncrypted)).toBe("end-to-end");
+  });
+
+  test("a plain message is neither", () => {
+    expect(core.classifySource("From: a@b.c\n\nplain\n")).toBe("none");
+  });
+
+  test("the decrypted result carries the distinction", async () => {
+    const raw = await storedMessage("From: a@b.c\nSubject: Hi\n\nbody\n");
+    const key = await core.unlockPrivateKey(keys.armoredPrivateKey, PASSPHRASE);
+    const result = await core.decryptRawSource(raw, [key]);
+    expect(result.encryption).toBe("storage");
+  });
+});
+
+describe("finding a sender key inside the message", () => {
+  test("picks up a key sent as an attachment", async () => {
+    const generated = await openpgp.generateKey({
+      userIDs: [{ name: "Cid", email: "cid@example.org" }],
+      format: "armored",
+    });
+    const found = await core.findSenderKeys({
+      headers: [],
+      attachments: [
+        {
+          filename: "cid.asc",
+          mimeType: "application/pgp-keys",
+          content: new TextEncoder().encode(generated.publicKey).buffer,
+        },
+      ],
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0].userIds).toContain("Cid <cid@example.org>");
+  });
+
+  test("picks up a key advertised through Autocrypt", async () => {
+    const generated = await openpgp.generateKey({
+      userIDs: [{ name: "Dee", email: "dee@example.org" }],
+      format: "object",
+    });
+    const keydata = Buffer.from(generated.publicKey.toPacketList().write()).toString("base64");
+    const found = await core.findSenderKeys({
+      headers: [{ key: "autocrypt", value: `addr=dee@example.org; keydata=${keydata}` }],
+      attachments: [],
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0].userIds).toContain("Dee <dee@example.org>");
+  });
+
+  test("finds nothing when the message carries no key", async () => {
+    expect(await core.findSenderKeys({ headers: [], attachments: [] })).toHaveLength(0);
+  });
+
+  test("ignores an attachment that is not a key", async () => {
+    const found = await core.findSenderKeys({
+      headers: [],
+      attachments: [
+        {
+          filename: "notes.asc",
+          mimeType: "application/pgp-keys",
+          content: new TextEncoder().encode("not a key").buffer,
+        },
+      ],
+    });
+    expect(found).toHaveLength(0);
+  });
+});
