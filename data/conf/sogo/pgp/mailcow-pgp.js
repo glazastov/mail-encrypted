@@ -336,8 +336,9 @@
 
   var STYLE = [
     ".mailcow-pgp-frame{width:100%;height:60vh;border:0;background:#fff}",
-    ".mailcow-pgp-sig{display:flex;align-items:center;gap:8px}",
-    ".mailcow-pgp-sig md-icon{margin-right:4px}"
+    ".mailcow-pgp-sig{display:flex;align-items:center;gap:6px;flex-wrap:wrap}",
+    ".mailcow-pgp-sig>*{flex:0 0 auto;margin:0}",
+    ".mailcow-pgp-sig md-icon{margin:0;min-width:24px}"
   ].join("");
 
   var VAULT_PREFIX = "mailcow.pgp.vault.";
@@ -444,13 +445,13 @@
     '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.encryption.color}">',
     "<md-icon>{{ pgp.encryption.icon }}</md-icon>",
     '<span class="md-body-2">{{ pgp.encryption.text }}</span>',
-    '<span class="md-caption">&nbsp;- {{ pgp.encryption.hint }}</span>',
+    '<md-tooltip md-direction="bottom">{{ pgp.encryption.hint }}</md-tooltip>',
     "</div>",
     '<div class="sg-padded mailcow-pgp-sig" ng-style="{color: pgp.signature.color}">',
     "<md-icon>{{ pgp.signature.icon }}</md-icon>",
     '<span class="md-body-2">{{ pgp.signature.text }}</span>',
-    '<span class="md-caption" ng-if="pgp.signature.who">&nbsp;- {{ pgp.signature.who }}</span>',
-    '<md-icon class="md-caption" ng-if="pgp.signature.others.length">more_horiz',
+    '<span class="md-caption" ng-if="pgp.signature.who">{{ pgp.signature.who }}</span>',
+    '<md-icon ng-if="pgp.signature.others.length">more_horiz',
     '<md-tooltip md-direction="bottom">{{ pgp.signature.othersLabel }}</md-tooltip>',
     "</md-icon>",
     '<md-button class="md-raised md-primary" ng-if="pgp.senderKey && !pgp.senderKeyAdded"',
@@ -524,6 +525,8 @@
   var blobUrls = [];
   var lastHandled = "";
   var failed = {};
+  var knownFolders = {};
+  var decryptedCache = null;
   var busy = false;
   var angularInjector = null;
   var trace = [];
@@ -699,10 +702,24 @@
   function sourceUrl(message) {
     var base = window.UserFolderURL || "";
     if (base.charAt(base.length - 1) !== "/") base += "/";
+    var folder = knownFolders[message.folder] || core.soFolder(message.folder);
     return (
       base + "Mail/" + encodeURIComponent(message.account) + "/" +
-      encodeURIComponent(message.folder) + "/" + encodeURIComponent(message.uid) + "/viewsource"
+      folder.split("/").map(encodeURIComponent).join("/") + "/" +
+      encodeURIComponent(message.uid) + "/viewsource"
     );
+  }
+
+  function learnFolder(folder) {
+    if (!folder || folder.indexOf("folder") !== 0) return;
+    var bare = folder
+      .split("/")
+      .map(function (segment) {
+        return segment.indexOf("folder") === 0 ? segment.slice(6) : segment;
+      })
+      .join("/");
+    knownFolders[bare] = folder;
+    knownFolders[folder] = folder;
   }
 
   async function fetchSource(url) {
@@ -1224,6 +1241,13 @@
     lastHandled = token;
     clearInPlace();
     try {
+      var remembered = decryptedCache.get(token);
+      if (remembered) {
+        await showResult(remembered);
+        note("message " + token + ": shown from cache");
+        return;
+      }
+
       var source = await fetchSource(sourceUrl(message));
       if (!core.isEncryptedSource(source)) {
         note("message " + token + ": not encrypted");
@@ -1241,7 +1265,9 @@
         }
       }
 
-      await showResult(await core.decryptRawSource(source, unlockedKeys, await verificationKeys()));
+      var decrypted = await core.decryptRawSource(source, unlockedKeys, await verificationKeys());
+      decryptedCache.set(token, decrypted);
+      await showResult(decrypted);
       note("message " + token + ": shown");
     } catch (error) {
       note("message " + token + ": " + (error && error.code ? error.code : error));
@@ -1258,7 +1284,10 @@
     var open = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url) {
       var message = messageFrom(url);
-      if (message) window.setTimeout(function () { handleMessage(message); }, 0);
+      if (message) {
+        learnFolder(message.folder);
+        window.setTimeout(function () { handleMessage(message); }, 0);
+      }
       return open.apply(this, arguments);
     };
 
@@ -1267,6 +1296,7 @@
       var url = typeof input === "string" ? input : input && input.url;
       var message = messageFrom(url);
       if (message && String(url).indexOf("/viewsource") === -1) {
+        learnFolder(message.folder);
         window.setTimeout(function () { handleMessage(message); }, 0);
       }
       return originalFetch.apply(this, arguments);
@@ -1345,6 +1375,7 @@
     unlockedKeys = [];
     failed = {};
     lastHandled = "";
+    if (decryptedCache) decryptedCache.clear();
     releaseBlobUrls();
     clearInPlace();
     try {
@@ -1394,6 +1425,7 @@
       PostalMime: window.MailcowPostalMime
     });
     vault = window.MailcowPGPVault.create({ crypto: window.crypto });
+    decryptedCache = core.createCache(20);
     window.MailcowPGP.wipe = wipeEverything;
 
     var style = document.createElement("style");
