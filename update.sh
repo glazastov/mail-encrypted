@@ -19,6 +19,14 @@ if [ ! -f "${PWD}/mailcow.conf" ]; then
 fi
 BRANCH="$(cd "${SCRIPT_DIR}" && git rev-parse --abbrev-ref HEAD)"
 
+# git must never open a credential prompt from here. Against a private or
+# unreachable remote it sits waiting for a username, which reads as the update
+# having hung - and on an unattended run it hangs for good. Every git call in
+# this script only reads from the remote, so refusing to ask is always right:
+# a fetch that needs credentials fails, and the failure is reported.
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=true
+
 # Check for --dev flag early to skip _modules update
 for arg in "$@"; do
   if [[ "$arg" == "--dev" || "$arg" == "-d" ]]; then
@@ -39,12 +47,26 @@ if [ ! "$DEV" ]; then
   fi
 
   echo -e "\e[33mFetching latest _modules from origin/${BRANCH}…\e[0m"
-  git fetch origin "${BRANCH}"
-  git checkout "origin/${BRANCH}" -- _modules
+  # A fetch that fails is not fatal on its own: the modules already on disk are
+  # usually the ones this run needs, so the update continues with those and
+  # only stops if there are none.
+  MODULES_FETCHED=y
+  if ! git fetch origin "${BRANCH}" || ! git checkout "origin/${BRANCH}" -- _modules; then
+    MODULES_FETCHED=
+  fi
 
   if [[ ! -d "${MODULE_DIR}" || -z "$(ls -A "${MODULE_DIR}")" ]]; then
     echo -e "\e[31mError: _modules is still missing or empty after fetch!\e[0m"
+    if [ ! "${MODULES_FETCHED}" ]; then
+      echo -e "\e[31mCould not read _modules from origin/${BRANCH}. If the remote is private,\e[0m"
+      echo -e "\e[31mgive git credentials it can use without asking - an SSH remote, a\e[0m"
+      echo -e "\e[31mcredential helper or a token in ~/.git-credentials - and run this again.\e[0m"
+    fi
     exit 2
+  fi
+
+  if [ ! "${MODULES_FETCHED}" ]; then
+    echo -e "\e[33mCould not fetch _modules from origin/${BRANCH}; continuing with the ones already on disk.\e[0m"
   fi
 
   # Calculate hash after fetch
