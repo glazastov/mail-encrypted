@@ -229,6 +229,11 @@ $(document).ready(function() {
       $('#addDomain_gal').prop('checked', false);
     }
 
+    // Templates written before PGP storage became a domain setting carry no
+    // value for it; those domains were allowed to use it, so that is what an
+    // absent value means here too.
+    $('#addDomain_pgp_storage').prop('checked', template.pgp_storage === undefined || template.pgp_storage == 1);
+
     if (template.active == 1){
       $('#addDomain_active').prop('checked', true);
     } else {

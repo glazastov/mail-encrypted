@@ -8,6 +8,7 @@
     <input type="hidden" value="0" name="active">
     <input type="hidden" value="0" name="backupmx">
     <input type="hidden" value="0" name="gal">
+    <input type="hidden" value="0" name="pgp_storage">
     <input type="hidden" value="0" name="relay_all_recipients">
     <input type="hidden" value="0" name="relay_unknown_only">
 
@@ -67,6 +68,10 @@
         <div class="form-check">
           <label><input type="checkbox" class="form-check-input" value="1" name="gal"{% if template.attributes.gal == '1' %} checked{% endif %}> {{ lang.edit.gal }}</label>
           <small class="text-muted">{{ lang.edit.gal_info|raw }}</small>
+        </div>
+        <div class="form-check">
+          <label><input type="checkbox" class="form-check-input" value="1" name="pgp_storage"{% if template.attributes.pgp_storage is not defined or template.attributes.pgp_storage == '1' %} checked{% endif %}> {{ lang.edit.pgp_storage }}</label>
+          <small class="text-muted">{{ lang.edit.pgp_storage_info|raw }}</small>
         </div>
       </div>
     </div>

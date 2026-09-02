@@ -262,6 +262,10 @@ function init_db_schema()
           "relayhost" => "VARCHAR(255) NOT NULL DEFAULT '0'",
           "backupmx" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "gal" => "TINYINT(1) NOT NULL DEFAULT '1'",
+          // Whether the domain's mailboxes may use PGP storage encryption at
+          // all. Defaults to allowed, so an upgrade never disables encryption
+          // that is already running.
+          "pgp_storage" => "TINYINT(1) NOT NULL DEFAULT '1'",
           "relay_all_recipients" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "relay_unknown_only" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)",
@@ -604,13 +608,18 @@ function init_db_schema()
       "identity_provider" => array(
         "cols" => array(
           "key" => "VARCHAR(255) NOT NULL",
+          // Which domain the setting belongs to. The empty string is the
+          // appliance-wide configuration, which is what every row held before
+          // providers could be configured per domain and which still serves
+          // every domain that does not bring its own.
+          "domain" => "VARCHAR(255) NOT NULL DEFAULT ''",
           "value" => "TEXT NOT NULL",
           "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)",
           "modified" => "DATETIME ON UPDATE CURRENT_TIMESTAMP"
         ),
         "keys" => array(
           "primary" => array(
-            "" => array("key")
+            "" => array("key", "domain")
           )
         ),
         "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"

@@ -198,8 +198,10 @@ function domainadmin_login($user, $pass){
 }
 function user_login($user, $pass, $extra = null){
   global $pdo;
-  global $iam_provider;
-  global $iam_settings;
+
+  // Which identity provider answers for this address: the one its domain
+  // brings, or the appliance-wide one when it brings none.
+  $iam_settings = identity_provider('get', identity_provider_login_domain($user));
 
   $is_internal = $extra['is_internal'];
   $extra['service'] = !isset($extra['service']) ? 'NONE' : $extra['service'];
@@ -490,8 +492,12 @@ function apppass_login($user, $pass, $extra = null){
 // To use direct user credentials, only Authorization Code Flow is valid
 function keycloak_mbox_login_rest($user, $pass, $extra = null){
   global $pdo;
-  global $iam_provider;
-  global $iam_settings;
+
+  // Resolved from the address rather than taken from the global, so a domain
+  // with its own Keycloak is checked against that one.
+  $iam_domain = identity_provider_owner(identity_provider_login_domain($user));
+  $iam_settings = identity_provider('get', $iam_domain);
+  $iam_provider = identity_provider('init', $iam_domain);
 
   $is_internal = $extra['is_internal'];
   $create = $extra['create'];
@@ -511,7 +517,7 @@ function keycloak_mbox_login_rest($user, $pass, $extra = null){
   }
 
   // get access_token for service account of mailcow client
-  $admin_token = identity_provider("get-keycloak-admin-token");
+  $admin_token = identity_provider("get-keycloak-admin-token", $iam_domain);
 
   // get the mailcow_password attribute from keycloak user
   $url = "{$iam_settings['server_url']}/admin/realms/{$iam_settings['realm']}/users";
@@ -629,8 +635,12 @@ function keycloak_mbox_login_rest($user, $pass, $extra = null){
 }
 function ldap_mbox_login($user, $pass, $extra = null){
   global $pdo;
-  global $iam_provider;
-  global $iam_settings;
+
+  // Resolved from the address, so a domain with its own directory is searched
+  // in that one instead of the appliance-wide LDAP.
+  $iam_domain = identity_provider_owner(identity_provider_login_domain($user));
+  $iam_settings = identity_provider('get', $iam_domain);
+  $iam_provider = identity_provider('init', $iam_domain);
 
   $is_internal = $extra['is_internal'];
   $create = $extra['create'];

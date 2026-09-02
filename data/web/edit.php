@@ -138,7 +138,10 @@ if (isset($_SESSION['mailcow_cc_role'])) {
           'sender_acl_handles' => mailbox('get', 'sender_acl_handles', $mailbox),
           'user_acls' => acl('get', 'user', $mailbox),
           'mailbox_details' => $result,
-          'iam_settings' => $iam_settings,
+          // The authsource choices are the ones the mailbox's own domain can
+          // actually be authenticated against, which is not necessarily the
+          // appliance-wide provider.
+          'iam_settings' => identity_provider('get', $result['domain'] ?? ''),
         ];
       }
     }

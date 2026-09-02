@@ -170,12 +170,18 @@ settings {
 // Skip spam filtering for mailboxes that asked for it alongside PGP storage
 // encryption. Scanning means rspamd - and the quarantine table - see the
 // message in cleartext, which is exactly what those users are avoiding.
+//
+// A domain whose admin turned PGP storage off loses the exemption with it:
+// nothing is being encrypted there any more, so there is nothing to protect
+// from the scanner.
 */
 
-$stmt = $pdo->query("SELECT `username` FROM `mailbox`
-  WHERE JSON_VALUE(`attributes`, '$.pgp_storage_encrypt') = '1'
-    AND JSON_VALUE(`attributes`, '$.pgp_skip_spam') = '1'
-    AND `active` IN ('1', '2')");
+$stmt = $pdo->query("SELECT `mailbox`.`username` FROM `mailbox`
+  LEFT JOIN `domain` ON `domain`.`domain` = `mailbox`.`domain`
+  WHERE JSON_VALUE(`mailbox`.`attributes`, '$.pgp_storage_encrypt') = '1'
+    AND JSON_VALUE(`mailbox`.`attributes`, '$.pgp_skip_spam') = '1'
+    AND IFNULL(`domain`.`pgp_storage`, '1') = '1'
+    AND `mailbox`.`active` IN ('1', '2')");
 $pgp_nospam = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 while ($row = array_shift($pgp_nospam)) {

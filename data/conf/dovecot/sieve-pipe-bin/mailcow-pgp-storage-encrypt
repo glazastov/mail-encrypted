@@ -171,13 +171,22 @@ def load_public_key(candidates):
     try:
         cur = conn.cursor(MySQLdb.cursors.DictCursor)
         for candidate in seen:
+            # The domain switch is the admin's and overrides the mailbox's own,
+            # so it is read here rather than left to the caller. A mailbox whose
+            # domain row is missing keeps the behaviour it had before the
+            # setting existed, hence the LEFT JOIN and the default of '1'.
             cur.execute(
-                "SELECT attributes FROM mailbox WHERE username = %s AND active IN ('1', '2')",
+                "SELECT mailbox.attributes, IFNULL(domain.pgp_storage, '1') AS domain_pgp_storage"
+                " FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain"
+                " WHERE mailbox.username = %s AND mailbox.active IN ('1', '2')",
                 (candidate,),
             )
             row = cur.fetchone()
             if not row:
                 log_debug("load_public_key: no row for " + candidate)
+                continue
+            if str(row.get("domain_pgp_storage")) != "1":
+                log_debug("load_public_key: PGP storage is disabled for the domain of " + candidate)
                 continue
             attrs = json.loads(row.get("attributes") or "{}")
             pgp_encrypt = str(attrs.get("pgp_storage_encrypt", "0"))

@@ -13,9 +13,25 @@ $js_minifier->add('/web/js/site/admin.js');
 $js_minifier->add('/web/js/presets/rspamd.js');
 $js_minifier->add('/web/js/site/pwgen.js');
 
+// Which identity provider configuration the admin is looking at: '' is the
+// appliance-wide one, anything else a domain's own.
+$iam_domain = isset($_GET['iam_domain']) ? strtolower(trim($_GET['iam_domain'])) : '';
+$iam_configured_domains = array();
+foreach (identity_provider_rows() as $iam_row_domain => $iam_row) {
+  if ($iam_row_domain !== '' && !empty($iam_row['authsource'])) {
+    $iam_configured_domains[] = $iam_row_domain;
+  }
+}
+
 // all domains
 $domains = mailbox('get', 'domains');
 $all_domains =  array_merge($domains, mailbox('get', 'alias_domains'));
+
+// Only a domain this admin actually has can be edited; anything else falls
+// back to the appliance-wide configuration.
+if ($iam_domain !== '' && !in_array($iam_domain, $domains, true)) {
+  $iam_domain = '';
+}
 
 // mailboxes
 $mailboxes = [];
@@ -119,7 +135,13 @@ $template_data = [
   'show_rspamd_global_filters' => @$_SESSION['show_rspamd_global_filters'],
   'cors_settings' => $cors_settings,
   'is_https' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
-  'iam_settings' => $iam_settings,
+  // The identity provider tab edits one configuration at a time: the
+  // appliance-wide one, or a single domain's own. own_only keeps an
+  // unconfigured domain's form empty instead of prefilling it with the global
+  // settings, which would look like it already had them.
+  'iam_settings' => identity_provider('get', $iam_domain, array('own_only' => true)),
+  'iam_domain' => $iam_domain,
+  'iam_configured_domains' => $iam_configured_domains,
   'mbox_templates' => $mbox_templates,
   'lang_admin' => json_encode($lang['admin']),
   'lang_datatables' => json_encode($lang['datatables'])

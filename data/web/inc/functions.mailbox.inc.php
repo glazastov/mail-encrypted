@@ -94,6 +94,16 @@ function pgp_validate_public_key($key, &$error = null) {
   return true;
 }
 
+// Reads a PGP on/off value from anywhere it can arrive: the API sends a bool or
+// "0"/"1", the DB a string, and a form posts the hidden-zero and the checked
+// box under one name, which arrives as an array whose last entry decides.
+function pgp_flag($value) {
+  if (is_array($value)) {
+    $value = end($value);
+  }
+  return ($value === '0' || $value === 0 || $value === false || $value === null || $value === '') ? 0 : 1;
+}
+
 function mailbox($_action, $_type, $_data = null, $_extra = null) {
   global $pdo;
   global $redis;
@@ -647,6 +657,9 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $relay_unknown_only = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : $DOMAIN_DEFAULT_ATTRIBUTES['relay_unknown_only'];
           $backupmx = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : $DOMAIN_DEFAULT_ATTRIBUTES['backupmx'];
           $gal = (isset($_data['gal'])) ? intval($_data['gal']) : $DOMAIN_DEFAULT_ATTRIBUTES['gal'];
+          // Older templates predate the setting; a missing value means allowed,
+          // which is what every domain got before it existed.
+          $pgp_storage = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : intval($DOMAIN_DEFAULT_ATTRIBUTES['pgp_storage'] ?? 1);
           if ($relay_all_recipients == 1) {
             $backupmx = '1';
           }
@@ -702,8 +715,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             ':domain' => '%@' . $domain
           ));
           // save domain
-          $stmt = $pdo->prepare("INSERT INTO `domain` (`domain`, `description`, `aliases`, `mailboxes`, `defquota`, `maxquota`, `quota`, `backupmx`, `gal`, `active`, `relay_unknown_only`, `relay_all_recipients`)
-            VALUES (:domain, :description, :aliases, :mailboxes, :defquota, :maxquota, :quota, :backupmx, :gal, :active, :relay_unknown_only, :relay_all_recipients)");
+          $stmt = $pdo->prepare("INSERT INTO `domain` (`domain`, `description`, `aliases`, `mailboxes`, `defquota`, `maxquota`, `quota`, `backupmx`, `gal`, `pgp_storage`, `active`, `relay_unknown_only`, `relay_all_recipients`)
+            VALUES (:domain, :description, :aliases, :mailboxes, :defquota, :maxquota, :quota, :backupmx, :gal, :pgp_storage, :active, :relay_unknown_only, :relay_all_recipients)");
           $stmt->execute(array(
             ':domain' => $domain,
             ':description' => $description,
@@ -714,6 +727,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             ':quota' => $quota,
             ':backupmx' => $backupmx,
             ':gal' => $gal,
+            ':pgp_storage' => $pgp_storage,
             ':active' => $active,
             ':relay_unknown_only' => $relay_unknown_only,
             ':relay_all_recipients' => $relay_all_recipients
@@ -1150,8 +1164,12 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             );
             return false;
           }
+          // The provider that serves this mailbox's domain decides, not the
+          // appliance-wide one: a domain with its own Keycloak accepts
+          // keycloak mailboxes even when the global config is LDAP.
+          $domain_iam_settings = identity_provider('get', $domain);
           if ($_data['authsource'] == "mailcow" ||
-              in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && $iam_settings['authsource'] == $_data['authsource']){
+              in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && ($domain_iam_settings['authsource'] ?? '') == $_data['authsource']){
             $authsource = $_data['authsource'];
           }
           if (empty($name)) {
@@ -1775,6 +1793,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $attr['rl_value']                   = (!empty($_data['rl_value'])) ? $_data['rl_value'] : "";
           $attr['active']                     = isset($_data['active']) ? intval($_data['active']) : 1;
           $attr['gal']                        = (isset($_data['gal'])) ? intval($_data['gal']) : 1;
+          $attr['pgp_storage']                = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : 1;
           $attr['backupmx']                   = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : 0;
           $attr['relay_all_recipients']       = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : 0;
           $attr['relay_unknown_only']          = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : 0;
@@ -2380,8 +2399,33 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               );
               continue;
             }
-            $pgp_public_key = trim((string)($_data['pgp_public_key'] ?? ''));
-            $pgp_storage_encrypt = !empty($_data['pgp_storage_encrypt']) ? 1 : 0;
+            // Every field is optional: what is not sent keeps the value it
+            // has. The UI always posts the whole form, so this only matters
+            // for the API, where "turn encryption off" must not double as
+            // "throw the public key away".
+            $is_now = mailbox('get', 'mailbox_details', $username, 'reduced');
+            if (!is_array($is_now)) {
+              $is_now = array();
+            }
+            $attributes_now = (isset($is_now['attributes']) && is_array($is_now['attributes'])) ? $is_now['attributes'] : array();
+            $pgp_public_key = array_key_exists('pgp_public_key', $_data) ?
+              trim((string)$_data['pgp_public_key']) :
+              trim((string)($attributes_now['pgp_public_key'] ?? ''));
+            $pgp_storage_encrypt = array_key_exists('pgp_storage_encrypt', $_data) ?
+              pgp_flag($_data['pgp_storage_encrypt']) :
+              pgp_flag($attributes_now['pgp_storage_encrypt'] ?? 0);
+            // The domain switch is the admin's, so it wins over the mailbox's
+            // own. Refusing here only stops the flag from being set: the key
+            // and the other options stay as they are, so turning the domain
+            // back on restores exactly what the user had configured.
+            if ($pgp_storage_encrypt && !pgp_flag($is_now['domain_pgp_storage'] ?? 1)) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                'msg' => 'pgp_domain_disabled'
+              );
+              continue;
+            }
             if ($pgp_public_key !== '') {
               $pgp_error = null;
               if (!pgp_validate_public_key($pgp_public_key, $pgp_error)) {
@@ -2407,9 +2451,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             }
             // Both only mean anything while storage encryption is on, so they
             // are forced off with it rather than left dangling in the DB.
-            $pgp_encrypt_subject = ($pgp_storage_encrypt && !empty($_data['pgp_encrypt_subject'])) ? 1 : 0;
-            $pgp_skip_spam = ($pgp_storage_encrypt && !empty($_data['pgp_skip_spam'])) ? 1 : 0;
-            $pgp_failure_mode = (string)($_data['pgp_failure_mode'] ?? 'deliver');
+            $pgp_encrypt_subject = array_key_exists('pgp_encrypt_subject', $_data) ?
+              pgp_flag($_data['pgp_encrypt_subject']) :
+              pgp_flag($attributes_now['pgp_encrypt_subject'] ?? 0);
+            $pgp_skip_spam = array_key_exists('pgp_skip_spam', $_data) ?
+              pgp_flag($_data['pgp_skip_spam']) :
+              pgp_flag($attributes_now['pgp_skip_spam'] ?? 0);
+            $pgp_encrypt_subject = $pgp_storage_encrypt ? $pgp_encrypt_subject : 0;
+            $pgp_skip_spam = $pgp_storage_encrypt ? $pgp_skip_spam : 0;
+            $pgp_failure_mode = (string)($_data['pgp_failure_mode'] ?? ($attributes_now['pgp_failure_mode'] ?? 'deliver'));
             if (!in_array($pgp_failure_mode, array('deliver', 'defer'), true)) {
               $pgp_failure_mode = 'deliver';
             }
@@ -3033,6 +3083,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 $active               = (isset($_data['active'])) ? intval($_data['active']) : $is_now['active'];
                 $backupmx             = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : $is_now['backupmx'];
                 $gal                  = (isset($_data['gal'])) ? intval($_data['gal']) : $is_now['gal'];
+                $pgp_storage          = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : $is_now['pgp_storage'];
                 $relay_all_recipients = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : $is_now['relay_all_recipients'];
                 $relay_unknown_only   = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : $is_now['relay_unknown_only'];
                 $relayhost            = (isset($_data['relayhost'])) ? intval($_data['relayhost']) : $is_now['relayhost'];
@@ -3147,6 +3198,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               `relay_unknown_only` = :relay_unknown_only,
               `backupmx` = :backupmx,
               `gal` = :gal,
+              `pgp_storage` = :pgp_storage,
               `active` = :active,
               `quota` = :quota,
               `defquota` = :defquota,
@@ -3161,6 +3213,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 ':relay_unknown_only' => $relay_unknown_only,
                 ':backupmx' => $backupmx,
                 ':gal' => $gal,
+                ':pgp_storage' => $pgp_storage,
                 ':active' => $active,
                 ':quota' => $quota,
                 ':defquota' => $defquota,
@@ -3245,6 +3298,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             $attr['rl_value']                   = (!empty($_data['rl_value'])) ? $_data['rl_value'] : "";
             $attr['active']                     = isset($_data['active']) ? intval($_data['active']) : 1;
             $attr['gal']                        = (isset($_data['gal'])) ? intval($_data['gal']) : 1;
+            $attr['pgp_storage']                = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : 1;
             $attr['backupmx']                   = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : 0;
             $attr['relay_all_recipients']       = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : 0;
             $attr['relay_unknown_only']          = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : 0;
@@ -3318,8 +3372,11 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               $tags                 = (is_array($_data['tags']) ? $_data['tags'] : array());
               $attribute_hash       = (!empty($_data['attribute_hash'])) ? $_data['attribute_hash'] : '';
               $authsource           = $is_now['authsource'];
+              // Same rule as on add: the domain's own provider, or the
+              // global one when it has none.
+              $domain_iam_settings = identity_provider('get', $is_now['domain']);
               if ($_data['authsource'] == "mailcow" ||
-                  in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && $iam_settings['authsource'] == $_data['authsource']){
+                  in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && ($domain_iam_settings['authsource'] ?? '') == $_data['authsource']){
                 $authsource = $_data['authsource'];
               }
               if (in_array($authsource, array('keycloak', 'generic-oidc', 'ldap'))){
@@ -5201,6 +5258,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               `relay_unknown_only`,
               `backupmx`,
               `gal`,
+              `pgp_storage`,
               `active`
                 FROM `domain` WHERE `domain`= :domain");
           $stmt->execute(array(
@@ -5261,6 +5319,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $domaindata['backupmx_int'] = $row['backupmx'];
           $domaindata['gal'] = $row['gal'];
           $domaindata['gal_int'] = $row['gal'];
+          $domaindata['pgp_storage'] = $row['pgp_storage'];
+          $domaindata['pgp_storage_int'] = $row['pgp_storage'];
           $domaindata['rl'] = $rl;
           $domaindata['active'] = $row['active'];
           $domaindata['active_int'] = $row['active'];
@@ -5348,6 +5408,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           if (preg_match('/y|yes/i', getenv('MASTER'))) {
             $stmt = $pdo->prepare("SELECT
               `domain`.`backupmx`,
+              `domain`.`pgp_storage`,
               `mailbox`.`username`,
               `mailbox`.`name`,
               `mailbox`.`active`,
@@ -5370,6 +5431,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           else {
             $stmt = $pdo->prepare("SELECT
               `domain`.`backupmx`,
+              `domain`.`pgp_storage`,
               `mailbox`.`username`,
               `mailbox`.`name`,
               `mailbox`.`active`,
@@ -5398,6 +5460,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $mailboxdata['active'] = $row['active'];
           $mailboxdata['active_int'] = $row['active'];
           $mailboxdata['domain'] = $row['domain'];
+          // Whether the domain still allows PGP storage encryption at all.
+          $mailboxdata['domain_pgp_storage'] = $row['pgp_storage'];
           $mailboxdata['name'] = $row['name'];
           $mailboxdata['local_part'] = $row['local_part'];
           $mailboxdata['quota'] = $row['quota'];
@@ -5907,6 +5971,13 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               ':domain' => $domain,
             ));
             $stmt = $pdo->prepare("DELETE FROM `domain_admins` WHERE `domain` = :domain");
+            $stmt->execute(array(
+              ':domain' => $domain,
+            ));
+            // Its own identity provider goes with it, client secret included,
+            // so a domain recreated under the same name does not silently
+            // inherit the one configured for its predecessor.
+            $stmt = $pdo->prepare("DELETE FROM `identity_provider` WHERE `domain` = :domain");
             $stmt->execute(array(
               ':domain' => $domain,
             ));

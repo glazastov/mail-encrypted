@@ -809,6 +809,19 @@ jQuery(function($){
   $('.iam_generic_redirect_del').click(async function(e){
     deleteRedirectUrlRow(this, e);
   });
+  // Selecting which configuration to edit reloads the page: the form has to
+  // show what is stored for that domain, and the stored values only come from
+  // the server.
+  $('#iam_domain').on('change', function(){
+    var url = new URL(window.location.href);
+    if (this.value) {
+      url.searchParams.set('iam_domain', this.value);
+    } else {
+      url.searchParams.delete('iam_domain');
+    }
+    url.hash = 'tab-config-identity-provider';
+    window.location = url.toString();
+  });
   // selecting identity provider
   $('#iam_provider').on('change', function(){
     // toggle password fields

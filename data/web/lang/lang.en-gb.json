@@ -115,6 +115,9 @@
         "validation_success": "Validated successfully"
     },
     "admin": {
+        "iam_domain": "Applies to",
+        "iam_domain_global": "All domains (default)",
+        "iam_domain_info": "A domain with its own provider uses it for logging in, for password checks and for creating users; every other domain uses the default one. A tick marks the domains that already have their own. Changing this only affects the form below.",
         "access": "Access",
         "action": "Action",
         "activate_api": "Activate API",
@@ -415,6 +418,8 @@
         "yes": "&#10003;"
     },
     "danger": {
+        "iam_sso_unavailable": "No single sign-on is configured for that address.",
+        "pgp_domain_disabled": "PGP storage encryption is disabled for this domain.",
         "access_denied": "Access denied or invalid form data",
         "captcha_failed": "Captcha verification failed. Please try again.",
         "tfa_removal_blocked": "Two-factor authentication cannot be removed because it is required for your account.",
@@ -644,6 +649,8 @@
         "optional": "This record is optional."
     },
     "edit": {
+        "pgp_storage": "Allow PGP storage encryption",
+        "pgp_storage_info": "Mailboxes of this domain may store their mail encrypted with their own public key. Turning this off stops new deliveries from being encrypted and takes the option away from the users, without erasing the keys and settings they already have - turning it back on restores them. Mail already stored encrypted stays encrypted and readable with the matching private key.",
         "acl": "ACL (Permission)",
         "active": "Active",
         "admin": "Edit administrator",
@@ -1259,6 +1266,7 @@
         "yubi_otp": "Yubico OTP authentication"
     },
     "user": {
+        "pgp_domain_disabled": "The administrator has disabled PGP storage encryption for this domain. Your settings are kept and take effect again if it is allowed once more.",
         "action": "Action",
         "active": "Active",
         "active_sieve": "Active filter",

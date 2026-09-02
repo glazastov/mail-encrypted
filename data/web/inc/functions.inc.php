@@ -2462,10 +2462,65 @@ function uuid4() {
 
   return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
+// Every identity_provider row, grouped by the domain it belongs to. The empty
+// key holds the appliance-wide configuration. Read once per request: the login
+// path asks for it repeatedly and it never changes mid-request.
+function identity_provider_rows($refresh = false) {
+  global $pdo;
+  static $rows = null;
+
+  if ($rows !== null && !$refresh) {
+    return $rows;
+  }
+  $rows = array();
+  // SELECT * on purpose: prerequisites reads the provider settings before the
+  // schema is brought up to date, so on the first request after an update the
+  // domain column may not exist yet. Naming it would turn that request into a
+  // fatal error - and the migration that adds it would never run. Rows from
+  // the older schema simply read as the appliance-wide configuration, which is
+  // what they were.
+  $stmt = $pdo->query("SELECT * FROM `identity_provider`;");
+  foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $rows[$row['domain'] ?? ''][$row['key']] = $row['value'];
+  }
+  return $rows;
+}
+
+// Whether a domain brings its own provider rather than using the global one.
+// A lone access_token does not count: it is written by the Keycloak admin flow,
+// not by an admin configuring anything.
+function identity_provider_has_own($domain) {
+  $domain = strtolower(trim((string)$domain));
+  if ($domain === '') {
+    return false;
+  }
+  $rows = identity_provider_rows();
+  return !empty($rows[$domain]['authsource']);
+}
+
+// The domain whose configuration actually serves a mailbox domain: itself when
+// it brings one, otherwise the global config. This is the single answer every
+// caller must agree on - which provider may issue a session for an address.
+function identity_provider_owner($domain) {
+  return identity_provider_has_own($domain) ? strtolower(trim((string)$domain)) : '';
+}
+
+// The domain part of a login name, lowercased. Returns '' for anything that is
+// not an address.
+function identity_provider_login_domain($login) {
+  $login = strtolower(trim((string)$login));
+  $at = strrpos($login, '@');
+  return ($at === false) ? '' : substr($login, $at + 1);
+}
+
 function identity_provider($_action = null, $_data = null, $_extra = null) {
   global $pdo;
   global $iam_provider;
   global $iam_settings;
+  // Provider objects built during this request, keyed by the configuration's
+  // domain. Writing a configuration drops them, so nothing keeps serving the
+  // settings that were just replaced.
+  static $providers = array();
 
   $data_log = $_data;
   if (isset($data_log['client_secret'])) $data_log['client_secret'] = '*';
@@ -2473,10 +2528,24 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
 
   switch ($_action) {
     case 'get':
+      // $_data names the domain to read: null or '' is the appliance-wide
+      // configuration, which is also what a domain without its own falls back
+      // to. Pass $_extra['own_only'] to see a domain's own rows and nothing
+      // else, which is how the admin UI tells "not configured" from
+      // "inherits the global one".
+      $domain = is_array($_data) ? strtolower(trim((string)($_data['domain'] ?? ''))) : strtolower(trim((string)$_data));
+      $all_rows = identity_provider_rows();
+      $inherited = false;
+      if ($domain !== '' && !identity_provider_has_own($domain) && empty($_extra['own_only'])) {
+        $inherited = true;
+        $domain = '';
+      }
+      $rows = array();
+      foreach (($all_rows[$domain] ?? array()) as $key => $value) {
+        $rows[] = array('key' => $key, 'value' => $value);
+      }
+
       $settings = array();
-      $stmt = $pdo->prepare("SELECT * FROM `identity_provider`;");
-      $stmt->execute();
-      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
       foreach($rows as $row){
         switch ($row["key"]) {
           case "redirect_url_extra":
@@ -2499,16 +2568,21 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
       if (!array_key_exists('login_provisioning', $settings)) {
         $settings['login_provisioning'] = 1;
       }
+      // Which configuration answered, so callers never have to work it out
+      // again: the domain it belongs to, and whether it was inherited rather
+      // than the domain's own.
+      $settings['domain'] = $domain;
+      $settings['inherited'] = $inherited;
       // return default client_scopes for generic-oidc if none is set
-      if ($settings["authsource"] == "generic-oidc" && empty($settings["client_scopes"])){
+      if (($settings["authsource"] ?? '') == "generic-oidc" && empty($settings["client_scopes"])){
         $settings["client_scopes"] = "openid profile email mailcow_template";
       }
-      if ($_extra['hide_sensitive']){
+      if (!empty($_extra['hide_sensitive'])){
         $settings['client_secret'] = '';
         $settings['access_token'] = '';
       }
       // return default ldap options
-      if ($settings["authsource"] == "ldap"){
+      if (($settings["authsource"] ?? '') == "ldap"){
         $settings['use_ssl'] = !isset($settings['use_ssl']) ? false : $settings['use_ssl'];
         $settings['use_tls'] = !isset($settings['use_tls']) ? false : $settings['use_tls'];
         $settings['ignore_ssl_errors'] = !isset($settings['ignore_ssl_errors']) ? false : $settings['ignore_ssl_errors'];
@@ -2548,11 +2622,40 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
-      $stmt = $pdo->prepare("SELECT * FROM `mailbox`
-          WHERE `authsource` != 'mailcow'
-          AND `authsource` IS NOT NULL
-          AND `authsource` != :authsource");
-      $stmt->execute(array(':authsource' => $_data['authsource']));
+      // Which configuration is being written: a domain's own, or the global
+      // one that serves every domain not bringing its own.
+      $domain = strtolower(trim((string)($_data['domain'] ?? '')));
+      if ($domain !== '') {
+        $domain = idn_to_ascii($domain, 0, INTL_IDNA_VARIANT_UTS46);
+        $stmt = $pdo->prepare("SELECT `domain` FROM `domain` WHERE `domain` = :domain");
+        $stmt->execute(array(':domain' => $domain));
+        if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+          $_SESSION['return'][] =  array(
+            'type' => 'danger',
+            'log' => array(__FUNCTION__, $_action, $data_log),
+            'msg' => array('domain_invalid', htmlspecialchars($domain))
+          );
+          return false;
+        }
+      }
+
+      // Mailboxes already bound to a different provider block the change, but
+      // only the ones this configuration actually serves: a domain's own
+      // config answers for that domain, the global one for every domain
+      // without its own.
+      $mailboxes_served = "SELECT `mailbox`.* FROM `mailbox`
+          WHERE `mailbox`.`authsource` != 'mailcow'
+          AND `mailbox`.`authsource` IS NOT NULL
+          AND `mailbox`.`authsource` != :authsource";
+      if ($domain !== '') {
+        $stmt = $pdo->prepare($mailboxes_served . " AND `mailbox`.`domain` = :domain");
+        $stmt->execute(array(':authsource' => $_data['authsource'], ':domain' => $domain));
+      } else {
+        $stmt = $pdo->prepare($mailboxes_served . " AND `mailbox`.`domain` NOT IN (
+            SELECT `domain` FROM `identity_provider` WHERE `key` = 'authsource' AND `domain` != ''
+          )");
+        $stmt->execute(array(':authsource' => $_data['authsource']));
+      }
       $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
       if ($rows) {
         $_SESSION['return'][] =  array(
@@ -2599,7 +2702,8 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
       }
 
       $pdo->beginTransaction();
-      $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES (:key, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+      $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES (:key, :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+      $stmt->bindParam(':domain', $domain);
       // add connection settings
       foreach($required_settings as $setting){
         if (!isset($_data[$setting])){
@@ -2625,7 +2729,8 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         $redirect_url_extra = array_filter($_data['redirect_url_extra']);
         $redirect_url_extra = json_encode($redirect_url_extra);
 
-        $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES ('redirect_url_extra', :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+        $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES ('redirect_url_extra', :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+        $stmt->bindParam(':domain', $domain);
         $stmt->bindParam(':value', $redirect_url_extra);
         $stmt->execute();
       }
@@ -2633,7 +2738,8 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
       // add default template
       if (isset($_data['default_template'])) {
         $_data['default_template'] = (empty($_data['default_template'])) ? "" : $_data['default_template'];
-        $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES ('default_template', :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+        $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES ('default_template', :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+        $stmt->bindParam(':domain', $domain);
         $stmt->bindParam(':value', $_data['default_template']);
         $stmt->execute();
       }
@@ -2649,17 +2755,22 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
           $mappers = json_encode($mappers);
           $templates = json_encode($templates);
 
-          $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES ('mappers', :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+          $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES ('mappers', :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+          $stmt->bindParam(':domain', $domain);
           $stmt->bindParam(':value', $mappers);
           $stmt->execute();
-          $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES ('templates', :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+          $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES ('templates', :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+          $stmt->bindParam(':domain', $domain);
           $stmt->bindParam(':value', $templates);
           $stmt->execute();
         }
       }
 
       // delete old access_token
-      $stmt = $pdo->query("INSERT INTO identity_provider (`key`, `value`) VALUES ('access_token', '') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+      $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES ('access_token', :domain, '') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+      $stmt->execute(array(':domain' => $domain));
+      identity_provider_rows(true);
+      $providers = array();
 
       $_SESSION['return'][] =  array(
         'type' => 'success',
@@ -2766,9 +2877,20 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
-      $stmt = $pdo->query("SELECT * FROM `mailbox`
-          WHERE `authsource` != 'mailcow'
-          AND `authsource` IS NOT NULL");
+      // Only the configuration named by $_data['domain'] goes; the mailboxes
+      // that would lose their provider are the ones it serves.
+      $domain = is_array($_data) ? strtolower(trim((string)($_data['domain'] ?? ''))) : strtolower(trim((string)$_data));
+      $in_use = "SELECT `mailbox`.* FROM `mailbox`
+          WHERE `mailbox`.`authsource` != 'mailcow'
+          AND `mailbox`.`authsource` IS NOT NULL";
+      if ($domain !== '') {
+        $stmt = $pdo->prepare($in_use . " AND `mailbox`.`domain` = :domain");
+        $stmt->execute(array(':domain' => $domain));
+      } else {
+        $stmt = $pdo->query($in_use . " AND `mailbox`.`domain` NOT IN (
+            SELECT `domain` FROM `identity_provider` WHERE `key` = 'authsource' AND `domain` != ''
+          )");
+      }
       $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
       if ($rows) {
         $_SESSION['return'][] =  array(
@@ -2779,7 +2901,10 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
-      $stmt = $pdo->query("DELETE FROM identity_provider;");
+      $stmt = $pdo->prepare("DELETE FROM identity_provider WHERE `domain` = :domain;");
+      $stmt->execute(array(':domain' => $domain));
+      identity_provider_rows(true);
+      $providers = array();
 
       $_SESSION['return'][] =  array(
         'type' => 'success',
@@ -2789,10 +2914,17 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
       return true;
     break;
     case "init":
-      $settings = identity_provider('get');
+      // Builds the provider object for one domain: its own configuration when
+      // it has one, the global one otherwise. Cached per domain because the
+      // login path builds it more than once per request.
+      $domain = is_array($_data) ? strtolower(trim((string)($_data['domain'] ?? ''))) : strtolower(trim((string)$_data));
+      if (array_key_exists($domain, $providers)) {
+        return $providers[$domain];
+      }
+      $settings = identity_provider('get', $domain);
       $provider = null;
 
-      switch ($settings['authsource']) {
+      switch ($settings['authsource'] ?? '') {
         case "keycloak":
           if ($settings['server_url'] && $settings['realm'] && $settings['client_id'] &&
             $settings['client_secret'] && $settings['redirect_url'] && $settings['version']){
@@ -2864,10 +2996,17 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
           }
         break;
       }
+      $providers[$domain] = $provider;
       return $provider;
     break;
     case "verify-sso":
-      if ($iam_settings['authsource'] != 'keycloak' && $iam_settings['authsource'] != 'generic-oidc'){
+      // Finish the flow with the very configuration that started it, recorded
+      // by get-redirect. Falling back to the global one here would let a
+      // tenant's provider complete a login it never began.
+      $sso_domain = strtolower(trim((string)($_SESSION['iam_sso_domain'] ?? '')));
+      $iam_settings = identity_provider('get', $sso_domain);
+      $iam_provider = identity_provider('init', $sso_domain);
+      if (!$iam_provider || ($iam_settings['authsource'] != 'keycloak' && $iam_settings['authsource'] != 'generic-oidc')){
         $_SESSION['return'][] =  array(
           'type' => 'danger',
           'log' => array(__FUNCTION__, "no OIDC provider configured"),
@@ -2894,6 +3033,20 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         $_SESSION['return'][] =  array(
           'type' => 'danger',
           'log' => array(__FUNCTION__, 'No email address found for user'),
+          'msg' => 'login_failed'
+        );
+        return false;
+      }
+
+      // A provider speaks only for the domains it serves: its own, or every
+      // domain without one when it is the global configuration. Without this,
+      // one tenant's IdP could assert any address on the appliance and be
+      // handed that mailbox's session.
+      if (identity_provider_owner(identity_provider_login_domain($info['email'])) !== $sso_domain) {
+        clear_session();
+        $_SESSION['return'][] =  array(
+          'type' => 'danger',
+          'log' => array(__FUNCTION__, $info['email'], 'The identity provider does not serve this address'),
           'msg' => 'login_failed'
         );
         return false;
@@ -3040,6 +3193,12 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
       return true;
     break;
     case "refresh-token":
+      // Same configuration the session was opened with.
+      $iam_provider = identity_provider('init', $_SESSION['iam_sso_domain'] ?? '');
+      if (!$iam_provider) {
+        clear_session();
+        return false;
+      }
       try {
         $token = $iam_provider->getAccessToken('refresh_token', ['refresh_token' => $_SESSION['iam_refresh_token']]);
         $plain_token = $token->getToken();
@@ -3065,19 +3224,41 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
+      // The address may have moved to a domain this provider does not serve,
+      // or come back as one it never did; either way the session ends here
+      // rather than being renewed for a mailbox it has no say over.
+      if (identity_provider_owner(identity_provider_login_domain($info['email'])) !== strtolower(trim((string)($_SESSION['iam_sso_domain'] ?? '')))) {
+        clear_session();
+        $_SESSION['return'][] =  array(
+          'type' => 'danger',
+          'log' => array(__FUNCTION__, $info['email'], 'The identity provider does not serve this address'),
+          'msg' => 'refresh_login_failed'
+        );
+        return false;
+      }
+
       set_user_loggedin_session($info['email']);
       $_SESSION['iam_token'] = $plain_token;
       $_SESSION['iam_refresh_token'] = $plain_refreshtoken;
       return true;
     break;
     case "get-redirect":
-      if ($iam_settings['authsource'] != 'keycloak' && $iam_settings['authsource'] != 'generic-oidc')
+      // $_data names the mail domain the user is signing in to. Its own
+      // provider answers when it has one, the global one otherwise, and the
+      // choice is remembered for the callback: the provider that started the
+      // flow is the only one allowed to finish it.
+      $login_domain = is_array($_data) ? strtolower(trim((string)($_data['domain'] ?? ''))) : strtolower(trim((string)$_data));
+      $sso_domain = identity_provider_owner($login_domain);
+      $settings = identity_provider('get', $sso_domain);
+      $provider = identity_provider('init', $sso_domain);
+      if (!$provider) return false;
+      if ($settings['authsource'] != 'keycloak' && $settings['authsource'] != 'generic-oidc')
         return false;
       $options = [];
-      if (isset($iam_settings['redirect_url_extra'])) {
+      if (isset($settings['redirect_url_extra'])) {
         // check if the current domain is used in an extra redirect URL
         $targetDomain = strtolower($_SERVER['HTTP_HOST']);
-        foreach ($iam_settings['redirect_url_extra'] as $testUrl) {
+        foreach ($settings['redirect_url_extra'] as $testUrl) {
           $testUrlParsed = parse_url($testUrl);
           if (isset($testUrlParsed['host']) && strtolower($testUrlParsed['host']) == $targetDomain) {
             $options['redirect_uri'] = $testUrl;
@@ -3085,13 +3266,19 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
           }
         }
       }
-      $authUrl = $iam_provider->getAuthorizationUrl($options);
-      $_SESSION['oauth2state'] = $iam_provider->getState();
+      $authUrl = $provider->getAuthorizationUrl($options);
+      $_SESSION['oauth2state'] = $provider->getState();
+      $_SESSION['iam_sso_domain'] = $sso_domain;
       return $authUrl;
     break;
     case "get-keycloak-admin-token":
       // get access_token for service account of mailcow client
-      if ($iam_settings['authsource'] !== 'keycloak') return false;
+      // $_data names the mail domain whose provider to ask; the token is kept
+      // with that provider's own settings, never shared between tenants.
+      $token_domain = is_array($_data) ? strtolower(trim((string)($_data['domain'] ?? ''))) : strtolower(trim((string)$_data));
+      $token_domain = identity_provider_owner($token_domain);
+      $iam_settings = identity_provider('get', $token_domain);
+      if (($iam_settings['authsource'] ?? '') !== 'keycloak') return false;
       if (isset($iam_settings['access_token'])) {
         // check if access_token is valid
         $url = "{$iam_settings['server_url']}/realms/{$iam_settings['realm']}/protocol/openid-connect/token/introspect";
@@ -3138,11 +3325,13 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
-      $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `value`) VALUES (:key, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
+      $stmt = $pdo->prepare("INSERT INTO identity_provider (`key`, `domain`, `value`) VALUES (:key, :domain, :value) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);");
       $stmt->execute(array(
         ':key' => 'access_token',
+        ':domain' => $token_domain,
         ':value' => $res['access_token']
       ));
+      identity_provider_rows(true);
       return $res['access_token'];
     break;
   }
