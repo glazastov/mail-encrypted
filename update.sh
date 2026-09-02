@@ -433,7 +433,16 @@ adapt_new_options
 if [ ! "$DEV" ]; then
   DEFAULT_REPO="https://github.com/glazastov/mail-encrypted"
   CURRENT_REPO=$(git config --get remote.origin.url)
-  if [ "$CURRENT_REPO" != "$DEFAULT_REPO" ]; then
+  # Compare repositories, not URLs. git@github.com:owner/repo.git and
+  # https://github.com/owner/repo are the same place reached two ways, and
+  # rewriting one into the other swaps how git authenticates: on a private
+  # repository that turns a working SSH remote into an HTTPS one with no
+  # credentials, and every later fetch fails. Only a genuinely different
+  # repository is worth asking about.
+  canonical_repo() {
+    echo "$1" | sed -E 's#^[a-z+]+://##; s#^[^/@]*@##; s#:#/#; s#\.git$##; s#/+$##' | tr '[:upper:]' '[:lower:]'
+  }
+  if [ "$(canonical_repo "$CURRENT_REPO")" != "$(canonical_repo "$DEFAULT_REPO")" ]; then
     echo "The Repository currently used is not the default mailcow Repository."
     echo "Currently Repository: $CURRENT_REPO"
     echo "Default Repository:   $DEFAULT_REPO"
@@ -457,12 +466,25 @@ if [ ! "$DEV" ]; then
   git add -u
   git commit -am "Before update on ${DATE}" > /dev/null
   echo -e "\e[32mFetching updated code from remote...\e[0m"
-  git fetch origin #${BRANCH}
-  echo -e "\e[32mMerging local with remote code (recursive, strategy: \"${MERGE_STRATEGY:-theirs}\", options: \"patience\"...\e[0m"
-  git config merge.defaultToUpstream true
-  git merge -X"${MERGE_STRATEGY:-theirs}" -Xpatience -m "After update on ${DATE}"
-  # Need to use a variable to not pass return codes of if checks
-  MERGE_RETURN=$?
+  # A merge against a remote that could not be read is a no-op that looks like
+  # a successful update: the stack would be rebuilt and restarted on exactly
+  # the code it already had, and nobody would know. Say so instead, and skip
+  # the merge - the rest of the run still brings mailcow back up.
+  if git fetch origin; then #${BRANCH}
+    echo -e "\e[32mMerging local with remote code (recursive, strategy: \"${MERGE_STRATEGY:-theirs}\", options: \"patience\"...\e[0m"
+    git config merge.defaultToUpstream true
+    git merge -X"${MERGE_STRATEGY:-theirs}" -Xpatience -m "After update on ${DATE}"
+    # Need to use a variable to not pass return codes of if checks
+    MERGE_RETURN=$?
+  else
+    MERGE_RETURN=0
+    echo
+    echo -e "\e[31m!! The code was NOT updated: could not read from $(git config --get remote.origin.url) !!\e[0m"
+    echo -e "\e[33mmailcow will be started again on the code it already has.\e[0m"
+    echo -e "\e[33mGive git credentials it can use without asking - an SSH key for this user,\e[0m"
+    echo -e "\e[33ma credential helper or a token - and run this script again.\e[0m"
+    echo
+  fi
   if [[ ${MERGE_RETURN} == 128 ]]; then
     echo -e "\e[31m\nOh no, what happened?\n=> You most likely added files to your local mailcow instance that were now added to the official mailcow repository. Please move them to another location before updating mailcow.\e[0m"
     exit 1
