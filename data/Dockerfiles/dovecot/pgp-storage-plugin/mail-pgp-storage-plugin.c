@@ -230,7 +230,11 @@ static void pgp_storage_mail_user_created(struct mail_user *user)
 	/* Arrives as a userdb field from mailcow's user_query; unknown userdb
 	   fields land in the plugin namespace. Only the flag travels this way
 	   -- an armored public key is multi-line and the auth protocol is
-	   line based, so the filter looks the key up in SQL itself. */
+	   line based, so the filter looks the key up in SQL itself.
+
+	   The query already folds in the domain's pgp_storage switch, so a
+	   domain whose admin withdrew storage encryption reports the flag as
+	   off here without any mailbox having been touched. */
 	value = mail_user_plugin_getenv(user, "pgp_storage_encrypt");
 	puser->enabled = value != NULL && *value == '1';
 

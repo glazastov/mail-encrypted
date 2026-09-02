@@ -262,6 +262,10 @@ function init_db_schema()
           "relayhost" => "VARCHAR(255) NOT NULL DEFAULT '0'",
           "backupmx" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "gal" => "TINYINT(1) NOT NULL DEFAULT '1'",
+          // Whether the domain's mailboxes may use PGP storage encryption at
+          // all. Defaults to allowed, so an upgrade never disables encryption
+          // that is already running.
+          "pgp_storage" => "TINYINT(1) NOT NULL DEFAULT '1'",
           "relay_all_recipients" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "relay_unknown_only" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)",

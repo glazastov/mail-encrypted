@@ -36,35 +36,50 @@
         </div>
       </div>
       <hr>
+      {# The admin can withdraw PGP storage from a whole domain. Nothing is
+         erased when they do: the settings below stay as the user left them and
+         come back untouched if the domain is allowed again, so the form keeps
+         showing them - read-only, under a banner saying they are not in
+         effect - rather than hiding or blanking them. #}
+      {% set pgp_domain_allowed = mailboxdata.domain_pgp_storage is not defined or mailboxdata.domain_pgp_storage == '1' %}
       <form data-id="pgp_storage">
+        {# The switches below are read as "leave it as it is" when absent, and
+           an unchecked box is not posted at all - so each one gets a zero to
+           fall back on. #}
+        <input type="hidden" value="0" name="pgp_storage_encrypt">
+        <input type="hidden" value="0" name="pgp_encrypt_subject">
+        <input type="hidden" value="0" name="pgp_skip_spam">
         <div class="row">
           <div class="col-sm-3 col-12 text-sm-end text-start text-xs-bold mb-4">{{ lang.user.pgp_storage }}:</div>
           <div class="col-sm-9 col-12">
+            {% if not pgp_domain_allowed %}
+            <div class="alert alert-warning py-2">{{ lang.user.pgp_domain_disabled }}</div>
+            {% endif %}
             <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}>
+              <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}{% if not pgp_domain_allowed %} disabled{% endif %}>
               <label class="form-check-label" for="pgp_storage_encrypt">{{ lang.user.pgp_storage_enable }}</label>
             </div>
-            <textarea class="form-control" id="pgp_public_key" rows="8" name="pgp_public_key" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
+            <textarea class="form-control" id="pgp_public_key" rows="8" name="pgp_public_key" spellcheck="false"{% if not pgp_domain_allowed %} readonly{% endif %} placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
             <div id="pgp_key_feedback" class="small mt-1"></div>
             <div class="mt-2 mb-2">
-              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_file_btn"><i class="bi bi-upload"></i> {{ lang.user.pgp_key_load_file }}</button>
-              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"><i class="bi bi-x-lg"></i> {{ lang.user.pgp_key_clear }}</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_file_btn"{% if not pgp_domain_allowed %} disabled{% endif %}><i class="bi bi-upload"></i> {{ lang.user.pgp_key_load_file }}</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="pgp_key_clear_btn"{% if not pgp_domain_allowed %} disabled{% endif %}><i class="bi bi-x-lg"></i> {{ lang.user.pgp_key_clear }}</button>
               <span id="pgp_key_filename" class="text-muted small ms-2"></span>
             </div>
             <div class="border-start ps-3 mt-3 mb-2" id="pgp_suboptions">
               <div class="form-check form-switch mb-2">
-                <input class="form-check-input" type="checkbox" role="switch" id="pgp_encrypt_subject" name="pgp_encrypt_subject" value="1"{% if mailboxdata.attributes.pgp_encrypt_subject == '1' or mailboxdata.attributes.pgp_encrypt_subject == 1 %} checked{% endif %}>
+                <input class="form-check-input" type="checkbox" role="switch" id="pgp_encrypt_subject" name="pgp_encrypt_subject" value="1"{% if mailboxdata.attributes.pgp_encrypt_subject == '1' or mailboxdata.attributes.pgp_encrypt_subject == 1 %} checked{% endif %}{% if not pgp_domain_allowed %} disabled{% endif %}>
                 <label class="form-check-label" for="pgp_encrypt_subject">{{ lang.user.pgp_encrypt_subject }}</label>
                 <div class="text-muted small">{{ lang.user.pgp_encrypt_subject_help }}</div>
               </div>
               <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="pgp_skip_spam" name="pgp_skip_spam" value="1"{% if mailboxdata.attributes.pgp_skip_spam == '1' or mailboxdata.attributes.pgp_skip_spam == 1 %} checked{% endif %}>
+                <input class="form-check-input" type="checkbox" role="switch" id="pgp_skip_spam" name="pgp_skip_spam" value="1"{% if mailboxdata.attributes.pgp_skip_spam == '1' or mailboxdata.attributes.pgp_skip_spam == 1 %} checked{% endif %}{% if not pgp_domain_allowed %} disabled{% endif %}>
                 <label class="form-check-label" for="pgp_skip_spam">{{ lang.user.pgp_skip_spam }}</label>
                 <div class="text-muted small">{{ lang.user.pgp_skip_spam_help }}</div>
               </div>
               <div class="mt-3">
                 <label class="form-label mb-1" for="pgp_failure_mode">{{ lang.user.pgp_failure_mode }}:</label>
-                <select class="form-select form-select-sm" id="pgp_failure_mode" name="pgp_failure_mode" style="max-width:32rem">
+                <select class="form-select form-select-sm" id="pgp_failure_mode" name="pgp_failure_mode" style="max-width:32rem"{% if not pgp_domain_allowed %} disabled{% endif %}>
                   <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>{{ lang.user.pgp_failure_deliver }}</option>
                   <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>{{ lang.user.pgp_failure_defer }}</option>
                 </select>
@@ -72,7 +87,7 @@
               </div>
             </div>
             <p class="text-muted">{{ lang.user.pgp_storage_help }}</p>
-            <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
+            <button type="button" class="btn btn-sm btn-success" id="pgp_storage_save" data-action="edit_selected" data-item="{{ mailcow_cc_username }}" data-id="pgp_storage" data-api-url='edit/pgp-storage' data-api-attr='{}'{% if not pgp_domain_allowed %} disabled{% endif %}><i class="bi bi-check-lg"></i> {{ lang.user.save_changes }}</button>
           </div>
         </div>
       </form>

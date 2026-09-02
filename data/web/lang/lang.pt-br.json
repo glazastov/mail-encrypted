@@ -415,6 +415,7 @@
         "user_quicklink": "Ocultar link rápido para página de login do usuário"
     },
     "danger": {
+        "pgp_domain_disabled": "A criptografia PGP no armazenamento está desativada para este domínio.",
         "access_denied": "Acesso negado ou dados de formulário inválidos",
         "alias_domain_invalid": "O domínio alias %s é inválido",
         "alias_empty": "O endereço do alias não deve estar vazio",
@@ -644,6 +645,8 @@
         "optional": "Esse registro é opcional."
     },
     "edit": {
+        "pgp_storage": "Permitir criptografia PGP no armazenamento",
+        "pgp_storage_info": "As caixas deste domínio podem armazenar o correio criptografado com a própria chave pública. Desligar isto faz as novas entregas deixarem de ser criptografadas e tira a opção dos usuários, sem apagar as chaves e as configurações que eles já têm — ao religar, tudo volta como estava. O correio já armazenado criptografado continua criptografado e legível com a chave privada correspondente.",
         "acl": "ACL (permissão)",
         "active": "Ativo",
         "admin": "Editar administrador",
@@ -1259,6 +1262,7 @@
         "cancel_setup": "Cancelar e sair"
     },
     "user": {
+        "pgp_domain_disabled": "O administrador desativou a criptografia PGP no armazenamento para este domínio. As suas configurações ficam guardadas e voltam a valer se ela for liberada de novo.",
         "action": "Ação",
         "active": "Ativo",
         "active_sieve": "Filtro ativo",

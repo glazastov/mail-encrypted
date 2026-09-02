@@ -443,6 +443,7 @@
       <div class="modal-body">
         <form class="form-horizontal" data-cached-form="true" data-id="add_domain" role="form">
           <input type="hidden" value="0" name="gal">
+          <input type="hidden" value="0" name="pgp_storage">
           <input type="hidden" value="0" name="active">
           <input type="hidden" value="0" name="backupmx">
           <input type="hidden" value="0" name="relay_all_recipients">
@@ -517,6 +518,14 @@
             </div>
           </div>
           {% endif %}
+          <div class="row mb-2">
+            <div class="offset-sm-2 col-sm-10">
+              <div class="form-check">
+                <label><input type="checkbox" class="form-check-input" id="addDomain_pgp_storage" value="1" name="pgp_storage" checked> {{ lang.edit.pgp_storage }}</label>
+                <small class="text-muted">{{ lang.edit.pgp_storage_info|raw }}</small>
+              </div>
+            </div>
+          </div>
           <div class="row mb-4">
             <div class="offset-sm-2 col-sm-10">
               <div class="form-check">
@@ -653,6 +662,14 @@
               <div class="form-check">
                 <label><input type="checkbox" class="form-check-input" value="1" name="gal" checked> {{ lang.add.gal }}</label>
                 <small class="text-muted">{{ lang.add.gal_info|raw }}</small>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="offset-sm-2 col-sm-10">
+              <div class="form-check">
+                <label><input type="checkbox" class="form-check-input" value="1" name="pgp_storage" checked> {{ lang.edit.pgp_storage }}</label>
+                <small class="text-muted">{{ lang.edit.pgp_storage_info|raw }}</small>
               </div>
             </div>
           </div>

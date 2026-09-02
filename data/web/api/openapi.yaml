@@ -569,6 +569,7 @@ paths:
                 domain: domain.tld
                 mailboxes: "10"
                 maxquota: "10240"
+                pgp_storage: "1"
                 quota: "10240"
                 relay_all_recipients: "0"
                 rl_frame: s
@@ -605,6 +606,13 @@ paths:
                 maxquota:
                   description: maximum quota per mailbox
                   type: number
+                pgp_storage:
+                  description: >-
+                    may the mailboxes of this domain use PGP storage
+                    encryption; when disabled, delivery stores messages
+                    unencrypted and users cannot turn their own switch on.
+                    Defaults to enabled
+                  type: boolean
                 quota:
                   description: maximum quota for this domain (for all mailboxes in sum)
                   type: number
@@ -3177,6 +3185,7 @@ paths:
                   gal: "1"
                   mailboxes: "10"
                   maxquota: "10240"
+                  pgp_storage: "1"
                   quota: "10240"
                   relay_all_recipients: "0"
                   relayhost: "2"
@@ -3211,6 +3220,12 @@ paths:
                     maxquota:
                       description: maximum quota per mailbox
                       type: number
+                    pgp_storage:
+                      description: >-
+                        may the mailboxes of this domain use PGP storage
+                        encryption; when disabled, delivery stores messages
+                        unencrypted and users cannot turn their own switch on
+                      type: boolean
                     quota:
                       description: maximum quota for this domain (for all mailboxes in sum)
                       type: number
@@ -3617,6 +3632,107 @@ paths:
                   type: object
               type: object
       summary: Update mailbox custom attributes
+  /api/v1/edit/pgp-storage:
+    post:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                  - log:
+                      - mailbox
+                      - edit
+                      - pgp_storage
+                      - username:
+                          - moo@mailcow.tld
+                        pgp_storage_encrypt: "1"
+                      - null
+                    msg:
+                      - mailbox_modified
+                      - moo@mailcow.tld
+                    type: success
+              schema:
+                properties:
+                  log:
+                    description: contains request object
+                    items: {}
+                    type: array
+                  msg:
+                    items: {}
+                    type: array
+                  type:
+                    enum:
+                      - success
+                      - danger
+                      - error
+                    type: string
+                type: object
+          description: OK
+          headers: {}
+      tags:
+        - Mailboxes
+      description: >-
+        Turn PGP storage encryption on or off for one or more mailboxes, and
+        set the options that go with it. Only the attributes you send are
+        changed; the rest keep their current value, so switching encryption off
+        does not discard the stored public key. Enabling it requires a public
+        key - either sent in the same request or already stored - and fails
+        with `pgp_domain_disabled` when the mailbox's domain has PGP storage
+        disabled (see the `pgp_storage` attribute of `add`/`edit domain`).
+      operationId: Update mailbox PGP storage encryption
+      requestBody:
+        content:
+          application/json:
+            schema:
+              example:
+                attr:
+                  pgp_storage_encrypt: "1"
+                  pgp_public_key: "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\n...\n-----END PGP PUBLIC KEY BLOCK-----"
+                  pgp_encrypt_subject: "0"
+                  pgp_skip_spam: "0"
+                  pgp_failure_mode: defer
+                items:
+                  - moo@mailcow.tld
+              properties:
+                attr:
+                  properties:
+                    pgp_storage_encrypt:
+                      description: encrypt stored messages with the mailbox public key
+                      type: boolean
+                    pgp_public_key:
+                      description: >-
+                        armored OpenPGP public key of the mailbox owner. Send an
+                        empty string to remove it, which also turns encryption
+                        off
+                      type: string
+                    pgp_encrypt_subject:
+                      description: >-
+                        store the subject as `[...]` and keep the real one
+                        inside the encrypted payload
+                      type: boolean
+                    pgp_skip_spam:
+                      description: >-
+                        skip spam and virus scanning for this mailbox, so no
+                        cleartext copy reaches rspamd or the quarantine
+                      type: boolean
+                    pgp_failure_mode:
+                      description: >-
+                        what to do when a message cannot be encrypted: store it
+                        unencrypted, or refuse it so nothing readable is stored
+                      enum:
+                        - deliver
+                        - defer
+                      type: string
+                  type: object
+                items:
+                  description: contains list of mailboxes you want to update
+                  type: object
+              type: object
+      summary: Update mailbox PGP storage encryption
   /api/v1/edit/mailq:
     post:
       responses:

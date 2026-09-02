@@ -114,6 +114,7 @@
         "help_text": "Anular texto de ajuda abaixo da máscara de login (HTML permitido)"
     },
     "danger": {
+        "pgp_domain_disabled": "A cifra PGP no armazenamento está desativada para este domínio.",
         "access_denied": "Acesso negado ou dados inválidos",
         "alias_domain_invalid": "O endereço do Encaminhamento de Domínio é inválido",
         "alias_empty": "Você deve preencher o campo do Apelido",
@@ -163,6 +164,8 @@
         "pgp_key_required": "É necessário indicar a chave pública para activar a cifra no armazenamento."
     },
     "edit": {
+        "pgp_storage": "Permitir cifra PGP no armazenamento",
+        "pgp_storage_info": "As caixas deste domínio podem guardar o correio cifrado com a própria chave pública. Desligar isto faz as novas entregas deixarem de ser cifradas e retira a opção aos utilizadores, sem apagar as chaves e as definições que já têm — ao voltar a ligar, tudo regressa como estava. O correio já guardado cifrado permanece cifrado e legível com a chave privada correspondente.",
         "active": "Ativo",
         "alias": "Editar apelido",
         "backup_mx_options": "Opções de Backup MX:",
@@ -290,6 +293,7 @@
         "resource_modified": "A conta %s foi alterada com sucesso"
     },
     "user": {
+        "pgp_domain_disabled": "O administrador desativou a cifra PGP no armazenamento para este domínio. As suas definições ficam guardadas e voltam a valer se for novamente permitida.",
         "action": "Ação",
         "active": "Ativo",
         "alias": "Apelido",

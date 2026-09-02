@@ -415,6 +415,7 @@
         "filter": "Filter"
     },
     "danger": {
+        "pgp_domain_disabled": "Die PGP-Verschlüsselung im Speicher ist für diese Domain deaktiviert.",
         "access_denied": "Zugriff verweigert oder unvollständige/ungültige Daten",
         "alias_domain_invalid": "Alias-Domain %s ist ungültig",
         "alias_empty": "Alias-Adresse darf nicht leer sein",
@@ -644,6 +645,8 @@
         "optional": "Dieser Eintrag ist optional."
     },
     "edit": {
+        "pgp_storage": "PGP-Verschlüsselung im Speicher erlauben",
+        "pgp_storage_info": "Postfächer dieser Domain dürfen ihre Nachrichten mit dem eigenen öffentlichen Schlüssel verschlüsselt speichern. Wird dies abgeschaltet, werden neue Zustellungen nicht mehr verschlüsselt und die Option verschwindet für die Benutzer, ohne deren Schlüssel und Einstellungen zu löschen - beim erneuten Einschalten sind sie wieder da. Bereits verschlüsselt gespeicherte Nachrichten bleiben verschlüsselt und mit dem passenden privaten Schlüssel lesbar.",
         "acl": "ACL (Berechtigungen)",
         "active": "Aktiv",
         "admin": "Administrator bearbeiten",
@@ -1251,6 +1254,7 @@
         "cancel_setup": "Abbrechen und abmelden"
     },
     "user": {
+        "pgp_domain_disabled": "Der Administrator hat die PGP-Verschlüsselung im Speicher für diese Domain deaktiviert. Ihre Einstellungen bleiben erhalten und gelten wieder, sobald sie erneut erlaubt wird.",
         "action": "Aktion",
         "active": "Aktiv",
         "active_sieve": "Aktiver Filter",
