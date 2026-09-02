@@ -75,7 +75,23 @@
         {% endif %}
         <div class="d-flex flex-column align-items-center">
           {% if has_iam_sso %}
-          <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="/?iam_sso=1"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</a>
+            {% if iam_sso_discovery %}
+            {# Some domains bring their own identity provider, so which one to
+               send the user to depends on their address. It is asked for here
+               instead of listing the domains, which would tell anyone opening
+               the login page who is hosted on this server. #}
+            <form method="post" class="w-100 d-flex flex-column align-items-center" autocomplete="on">
+              <input type="hidden" name="iam_sso" value="1">
+              <div class="input-group mt-2" style="max-width: 400px;">
+                <div class="input-group-text"><i class="bi bi-envelope-fill"></i></div>
+                <label class="visually-hidden" for="iam_sso_login">{{ lang.login.email }}</label>
+                <input name="iam_sso_login" id="iam_sso_login" type="email" class="form-control" placeholder="{{ lang.login.email }}" autocorrect="off" autocapitalize="none" autocomplete="username" required>
+              </div>
+              <button type="submit" class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</button>
+            </form>
+            {% else %}
+            <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="/?iam_sso=1"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</a>
+            {% endif %}
           {% endif %}
           {% if custom_login.force_sso != 1 %}
           <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="#" id="fido2-login"><i class="bi bi-shield-fill-check"></i> {{ lang.login.fido2_webauthn }}</a>

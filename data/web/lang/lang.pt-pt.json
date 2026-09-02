@@ -43,6 +43,9 @@
         "app_passwd_protocols": "Protocolos permitidos para senha de aplicação"
     },
     "admin": {
+        "iam_domain": "Aplica-se a",
+        "iam_domain_global": "Todos os domínios (predefinição)",
+        "iam_domain_info": "Um domínio com fornecedor próprio usa-o para entrar, para verificar palavras-passe e para criar utilizadores; os restantes usam o predefinido. O visto assinala os domínios que já têm o seu. Mudar aqui só altera o formulário abaixo.",
         "access": "Acessos",
         "action": "Ação",
         "active": "Ativo",
@@ -114,6 +117,7 @@
         "help_text": "Anular texto de ajuda abaixo da máscara de login (HTML permitido)"
     },
     "danger": {
+        "iam_sso_unavailable": "Não há início de sessão único configurado para esse endereço.",
         "pgp_domain_disabled": "A cifra PGP no armazenamento está desativada para este domínio.",
         "access_denied": "Acesso negado ou dados inválidos",
         "alias_domain_invalid": "O endereço do Encaminhamento de Domínio é inválido",

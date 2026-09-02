@@ -6052,6 +6052,57 @@ paths:
         Using this endpoint you can get the global spam filter score or the spam filter score of a certain mailbox.
       operationId: Get mailbox or global spam filter score
       summary: Get mailbox or global spam filter score
+  /api/v1/get/identity-provider/{domain}:
+    get:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          description: OK
+          headers: {}
+      tags:
+        - Identity Provider
+      description: >-
+        Returns the identity provider configuration stored for one mail domain,
+        and only that: a domain without its own answers with an empty object
+        rather than with the appliance-wide settings it actually uses. Drop the
+        path segment to read the appliance-wide configuration itself. Admin
+        only; the client secret is returned, so treat the response as one.
+      operationId: Get external Identity Provider settings for a domain
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          schema:
+            type: string
+          description: The mail domain whose own configuration to read
+          example: tenant.tld
+      summary: Get external Identity Provider settings for a domain
+  /api/v1/delete/identity-provider/{domain}:
+    post:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          description: OK
+          headers: {}
+      tags:
+        - Identity Provider
+      description: >-
+        Removes one domain's own identity provider configuration, after which
+        that domain falls back to the appliance-wide one. Drop the path segment
+        to remove the appliance-wide configuration instead. Refused while
+        mailboxes the configuration serves still have a non-mailcow authsource.
+      operationId: Delete external Identity Provider settings for a domain
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          schema:
+            type: string
+          description: The mail domain whose own configuration to remove
+          example: tenant.tld
+      summary: Delete external Identity Provider settings for a domain
   /api/v1/edit/identity-provider:
     post:
       responses:
@@ -6108,6 +6159,16 @@ paths:
                 attr:
                   type: object
                   properties:
+                    domain:
+                      description: >-
+                        The mail domain this configuration belongs to. Omit it
+                        (or send an empty string) for the appliance-wide
+                        provider, which serves every domain that does not bring
+                        its own. A domain with its own is authenticated against
+                        that one alone: it is the only provider allowed to open
+                        a session for its addresses, and the only one those
+                        addresses may use
+                      type: string
                     authsource:
                       description: Specifies the type of the Identity Provider
                       type: string
@@ -6253,6 +6314,22 @@ paths:
                     periodic_sync: true
                     import_users: true
                     sync_interval: 30
+              one domain only:
+                value:
+                  items:
+                    - "identity-provider"
+                  attr:
+                    domain: "tenant.tld"
+                    authsource: "keycloak"
+                    server_url: "https://auth.tenant.tld"
+                    realm: "tenant"
+                    client_id: "mailcow_client"
+                    client_secret: "Xy7GdPqvJ9m3R8sT2LkVZ5W1oNbCaYQf"
+                    redirect_url: "https://mail.mailcow.tld"
+                    version: "26.1.3"
+                    default_template: "Default"
+                    ignore_ssl_error: false
+                    login_provisioning: true
               generic-oidc:
                 value:
                   items:

@@ -115,6 +115,9 @@
         "sender_allowed": "Permitir enviar como este alias"
     },
     "admin": {
+        "iam_domain": "Aplica-se a",
+        "iam_domain_global": "Todos os domínios (padrão)",
+        "iam_domain_info": "Um domínio com provedor próprio o usa para entrar, para conferir senhas e para criar usuários; os demais usam o padrão. O tique marca os domínios que já têm o seu. Trocar aqui só muda o formulário abaixo.",
         "access": "Acesso",
         "action": "Ação",
         "activate_api": "Ativar API",
@@ -415,6 +418,7 @@
         "user_quicklink": "Ocultar link rápido para página de login do usuário"
     },
     "danger": {
+        "iam_sso_unavailable": "Não há login único configurado para esse endereço.",
         "pgp_domain_disabled": "A criptografia PGP no armazenamento está desativada para este domínio.",
         "access_denied": "Acesso negado ou dados de formulário inválidos",
         "alias_domain_invalid": "O domínio alias %s é inválido",

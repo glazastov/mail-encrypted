@@ -115,6 +115,9 @@
         "tags": "Tags"
     },
     "admin": {
+        "iam_domain": "Gilt für",
+        "iam_domain_global": "Alle Domains (Standard)",
+        "iam_domain_info": "Eine Domain mit eigenem Provider nutzt ihn zum Anmelden, zur Passwortprüfung und zum Anlegen von Benutzern; alle anderen nutzen den Standard. Ein Haken markiert die Domains, die bereits einen eigenen haben. Die Auswahl ändert nur das Formular unten.",
         "access": "Zugang",
         "action": "Aktion",
         "activate_api": "API aktivieren",
@@ -415,6 +418,7 @@
         "filter": "Filter"
     },
     "danger": {
+        "iam_sso_unavailable": "Für diese Adresse ist kein Single Sign-on eingerichtet.",
         "pgp_domain_disabled": "Die PGP-Verschlüsselung im Speicher ist für diese Domain deaktiviert.",
         "access_denied": "Zugriff verweigert oder unvollständige/ungültige Daten",
         "alias_domain_invalid": "Alias-Domain %s ist ungültig",

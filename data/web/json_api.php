@@ -1534,7 +1534,15 @@ if (isset($_GET['query'])) {
           break;
           case "identity-provider":
             if($_SESSION['mailcow_cc_role'] === 'admin') {
-              process_get_return($iam_settings);
+              // With no object this is the appliance-wide configuration, as it
+              // always was; with one it is that domain's own - own_only so an
+              // unconfigured domain reads as empty instead of echoing the
+              // global settings back as if they were its own.
+              if ($object) {
+                process_get_return(identity_provider('get', $object, array('own_only' => true)));
+              } else {
+                process_get_return(identity_provider('get'));
+              }
             } else {
               process_get_return(null);
             }
@@ -1823,7 +1831,9 @@ if (isset($_GET['query'])) {
           echo ratelimit('delete', null, implode($items));
         break;
         case "identity-provider":
-          process_delete_return(identity_provider('delete'));
+          // delete/identity-provider clears the global configuration;
+          // delete/identity-provider/<domain> only that domain's own.
+          process_delete_return(identity_provider('delete', array('domain' => $object)));
         break;
         // return no route found if no case is matched
         default:

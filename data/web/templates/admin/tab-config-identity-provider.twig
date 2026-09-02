@@ -8,6 +8,23 @@
     </div>
     <div id="collapse-tab-config-identity-provider" class="card-body collapse" data-bs-parent="#admin-content">
       <p class="offset-sm-3 mb-4">{{ lang.admin.iam_description|raw }}</p>
+      {# One configuration is edited at a time: the appliance-wide one, or a
+         single domain's own. Switching reloads the page, so the form below is
+         always the settings actually stored for what is selected. #}
+      <div class="row mb-4">
+        <div class="col-md-3 d-flex align-items-center justify-content-md-end">
+          <label class="control-label" for="iam_domain">{{ lang.admin.iam_domain }}:</label>
+        </div>
+        <div class="col-12 col-md-9 col-lg-4">
+          <select data-style="btn btn-secondary" name="iam_domain" id="iam_domain" class="full-width-select form-control">
+            <option value="">{{ lang.admin.iam_domain_global }}</option>
+            {% for domain in domains %}
+            <option value="{{ domain }}"{% if iam_domain == domain %} selected{% endif %}>{{ domain }}{% if domain in iam_configured_domains %} ✓{% endif %}</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">{{ lang.admin.iam_domain_info|raw }}</small>
+        </div>
+      </div>
       <div class="row mb-4">
         <div class="col-md-3 d-flex align-items-center justify-content-md-end">
           <label class="control-label" for="iam_realm">{{ lang.admin.iam }}:</label>
@@ -27,6 +44,7 @@
       <div id="keycloak_settings" class="{% if iam_settings.authsource and iam_settings.authsource != 'keycloak' %}d-none{% endif %}">
         <form class="form-horizontal" autocapitalize="none" data-id="iam_keycloak" autocorrect="off" role="form" method="post">
           <input type="hidden" name="authsource" value="keycloak">
+          <input type="hidden" name="domain" value="{{ iam_domain }}">
           <div class="row mb-2">
             <div class="col-md-3 d-flex align-items-center justify-content-md-end">
                 <label class="control-label" for="iam_keycloak_url">{{ lang.admin.iam_server_url }}:</label>
@@ -263,7 +281,7 @@
                 <button class="btn btn-sm d-block d-sm-inline btn-secondary iam_test_connection iam_test_connection" data-id="iam_keycloak"><i class="bi bi-play"></i> {{ lang.admin.iam_test_connection }}</button>
                 <button class="btn btn-sm d-block d-sm-inline btn-success" data-item="identity-provider" data-action="edit_selected" data-id="iam_keycloak" data-api-url='edit/identity-provider' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.admin.save }}</button>
               </div>
-              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_keycloak" data-api-url='delete/identity-provider'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
+              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_keycloak" data-api-url='delete/identity-provider{% if iam_domain %}/{{ iam_domain }}{% endif %}'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
             </div>
           </div>
         </form>
@@ -271,6 +289,7 @@
       <div id="generic_oidc_settings" class="{% if not iam_settings.authsource or iam_settings.authsource != 'generic-oidc' %}d-none{% endif %}">
         <form class="form-horizontal" autocapitalize="none" data-id="iam_generic" autocorrect="off" role="form" method="post">
           <input type="hidden" name="authsource" value="generic-oidc">
+          <input type="hidden" name="domain" value="{{ iam_domain }}">
           <div class="row mb-2">
             <div class="col-md-3 d-flex align-items-center justify-content-md-end">
               <label class="control-label" for="iam_authorize_url">{{ lang.admin.iam_authorize_url }}:</label>
@@ -466,7 +485,7 @@
                 <button class="btn btn-sm d-block d-sm-inline btn-secondary iam_test_connection" data-id="iam_generic"><i class="bi bi-play"></i> {{ lang.admin.iam_test_connection }}</button>
                 <button class="btn btn-sm d-block d-sm-inline btn-success" data-item="identity-provider" data-action="edit_selected" data-id="iam_generic" data-api-url='edit/identity-provider' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.admin.save }}</button>
               </div>
-              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_generic" data-api-url='delete/identity-provider'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
+              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_generic" data-api-url='delete/identity-provider{% if iam_domain %}/{{ iam_domain }}{% endif %}'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
             </div>
           </div>
         </form>
@@ -474,6 +493,7 @@
       <div id="ldap_settings" class="{% if not iam_settings.authsource or iam_settings.authsource != 'ldap' %}d-none{% endif %}">
         <form class="form-horizontal" autocapitalize="none" data-id="iam_ldap" autocorrect="off" role="form" method="post">
           <input type="hidden" name="authsource" value="ldap">
+          <input type="hidden" name="domain" value="{{ iam_domain }}">
           <div class="row mb-2">
             <div class="col-md-3 d-flex align-items-center justify-content-md-end">
               <i style="font-size: 16px; cursor: pointer;" class="bi bi-patch-question-fill mx-2 ms-0" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="bottom" title="{{ lang.admin.iam_host_info }}"></i>
@@ -710,7 +730,7 @@
                 <button class="btn btn-sm d-block d-sm-inline btn-secondary iam_test_connection iam_test_connection" data-id="iam_ldap"><i class="bi bi-play"></i> {{ lang.admin.iam_test_connection }}</button>
                 <button class="btn btn-sm d-block d-sm-inline btn-success" data-item="identity-provider" data-action="edit_selected" data-id="iam_ldap" data-api-url='edit/identity-provider' data-api-attr='{}'><i class="bi bi-check-lg"></i> {{ lang.admin.save }}</button>
               </div>
-              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_ldap" data-api-url='delete/identity-provider'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
+              <button class="btn btn-sm d-block d-sm-inline btn-danger ms-auto mb-2" data-item="identity-provider" data-action="delete_selected" data-id="iam_ldap" data-api-url='delete/identity-provider{% if iam_domain %}/{{ iam_domain }}{% endif %}'><i class="bi bi-trash"></i> {{ lang.mailbox.remove }}</button>
             </div>
           </div>
         </form>

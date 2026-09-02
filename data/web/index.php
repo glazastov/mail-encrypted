@@ -43,11 +43,21 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/header.inc.php';
 $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
 $_SESSION['index_query_string'] = $_SERVER['QUERY_STRING'];
 
-$has_iam_sso = false;
-if ($iam_provider){
-  $iam_redirect_url = identity_provider("get-redirect");
-  $has_iam_sso = $iam_redirect_url ? true : false;
+// Whether to offer SSO at all, and whether the address has to be asked for
+// first. With providers configured per domain there is no single redirect to
+// send everyone to, so the button collects the address and the domain decides.
+// Asking cannot be skipped by listing the domains: that would publish which
+// ones this server hosts.
+$oidc_authsources = array('keycloak', 'generic-oidc');
+$has_global_sso = in_array(identity_provider('get')['authsource'] ?? '', $oidc_authsources, true);
+$iam_sso_discovery = false;
+foreach (identity_provider_rows() as $iam_domain => $iam_domain_settings) {
+  if ($iam_domain !== '' && in_array($iam_domain_settings['authsource'] ?? '', $oidc_authsources, true)) {
+    $iam_sso_discovery = true;
+    break;
+  }
 }
+$has_iam_sso = $has_global_sso || $iam_sso_discovery;
 $custom_login = customize('get', 'custom_login');
 
 $template = 'user_index.twig';
@@ -56,6 +66,7 @@ $template_data = [
   'is_mobileconfig' => str_contains($_SESSION['index_query_string'], 'mobileconfig'),
   'login_delay' => @$_SESSION['ldelay'],
   'has_iam_sso' => $has_iam_sso,
+  'iam_sso_discovery' => $iam_sso_discovery,
   'custom_login' => $custom_login,
   'captcha' => captcha_template_data($CAPTCHA),
 ];

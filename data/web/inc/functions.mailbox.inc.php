@@ -1164,8 +1164,12 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             );
             return false;
           }
+          // The provider that serves this mailbox's domain decides, not the
+          // appliance-wide one: a domain with its own Keycloak accepts
+          // keycloak mailboxes even when the global config is LDAP.
+          $domain_iam_settings = identity_provider('get', $domain);
           if ($_data['authsource'] == "mailcow" ||
-              in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && $iam_settings['authsource'] == $_data['authsource']){
+              in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && ($domain_iam_settings['authsource'] ?? '') == $_data['authsource']){
             $authsource = $_data['authsource'];
           }
           if (empty($name)) {
@@ -3368,8 +3372,11 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               $tags                 = (is_array($_data['tags']) ? $_data['tags'] : array());
               $attribute_hash       = (!empty($_data['attribute_hash'])) ? $_data['attribute_hash'] : '';
               $authsource           = $is_now['authsource'];
+              // Same rule as on add: the domain's own provider, or the
+              // global one when it has none.
+              $domain_iam_settings = identity_provider('get', $is_now['domain']);
               if ($_data['authsource'] == "mailcow" ||
-                  in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && $iam_settings['authsource'] == $_data['authsource']){
+                  in_array($_data['authsource'], array('keycloak', 'generic-oidc', 'ldap')) && ($domain_iam_settings['authsource'] ?? '') == $_data['authsource']){
                 $authsource = $_data['authsource'];
               }
               if (in_array($authsource, array('keycloak', 'generic-oidc', 'ldap'))){
@@ -5964,6 +5971,13 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               ':domain' => $domain,
             ));
             $stmt = $pdo->prepare("DELETE FROM `domain_admins` WHERE `domain` = :domain");
+            $stmt->execute(array(
+              ':domain' => $domain,
+            ));
+            // Its own identity provider goes with it, client secret included,
+            // so a domain recreated under the same name does not silently
+            // inherit the one configured for its predecessor.
+            $stmt = $pdo->prepare("DELETE FROM `identity_provider` WHERE `domain` = :domain");
             $stmt->execute(array(
               ':domain' => $domain,
             ));

@@ -1,30 +1,41 @@
 <?php
 // handle iam authentication
-if ($iam_provider){
-  if (isset($_GET['iam_sso'])){
-    // redirect for sso
-    $redirect_uri = identity_provider('get-redirect');
+// Which provider to use depends on the address, since a domain can bring its
+// own: the login page hands the address over here, and everything downstream
+// works from the domain it resolves to.
+if (isset($_REQUEST['iam_sso'])){
+  $sso_login = strtolower(trim((string)($_REQUEST['iam_sso_login'] ?? $_REQUEST['login_user'] ?? '')));
+  $redirect_uri = identity_provider('get-redirect', identity_provider_login_domain($sso_login));
+  if (empty($redirect_uri)) {
+    // No provider serves that address. Say so rather than bouncing the user
+    // back to a login page that looks like it simply forgot the click.
+    $_SESSION['return'][] = array(
+      'type' => 'danger',
+      'log' => array('identity_provider', 'get-redirect', $sso_login),
+      'msg' => 'iam_sso_unavailable'
+    );
+    header('Location: /');
+    die();
+  }
+  header('Location: ' . $redirect_uri);
+  die();
+}
+if ($_SESSION['iam_token'] && $_SESSION['iam_refresh_token']) {
+  // Session found, try to refresh with the provider it was opened against
+  $isRefreshed = identity_provider('refresh-token');
+
+  if (!$isRefreshed){
+    // Session could not be refreshed, redirect to provider
+    $redirect_uri = identity_provider('get-redirect', $_SESSION['iam_sso_domain'] ?? '');
     $redirect_uri = !empty($redirect_uri) ? $redirect_uri : '/';
     header('Location: ' . $redirect_uri);
     die();
   }
-  if ($_SESSION['iam_token'] && $_SESSION['iam_refresh_token']) {
-    // Session found, try to refresh
-    $isRefreshed = identity_provider('refresh-token');
-
-    if (!$isRefreshed){
-      // Session could not be refreshed, redirect to provider
-      $redirect_uri = identity_provider('get-redirect');
-      $redirect_uri = !empty($redirect_uri) ? $redirect_uri : '/';
-      header('Location: ' . $redirect_uri);
-      die();
-    }
-  } elseif ($_GET['code'] && $_GET['state'] === $_SESSION['oauth2state']) {
-    // Check given state against previously stored one to mitigate CSRF attack
-    // Received access token in $_GET['code']
-    // extract info and verify user
-    identity_provider('verify-sso');
-  }
+} elseif ($_GET['code'] && $_GET['state'] === $_SESSION['oauth2state']) {
+  // Check given state against previously stored one to mitigate CSRF attack
+  // Received access token in $_GET['code']
+  // extract info and verify user
+  identity_provider('verify-sso');
 }
 
 function captcha_login_guard() {
