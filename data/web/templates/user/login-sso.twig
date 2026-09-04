@@ -1,0 +1,8 @@
+{# The address is already known, so the provider is not asked for again: the
+   domain it belongs to picks the one that answers, its own or the
+   appliance-wide one. #}
+<form method="post" class="w-100 d-flex flex-column align-items-center">
+  <input type="hidden" name="iam_sso" value="1">
+  <input type="hidden" name="iam_sso_login" value="{{ login_identify }}">
+  <button type="submit" class="btn btn-xs-lg {% if sso_primary %}btn-success{% else %}btn-secondary{% endif %} w-100 mt-2" style="max-width: 400px;"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</button>
+</form>

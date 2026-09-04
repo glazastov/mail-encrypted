@@ -42,20 +42,72 @@
         {% if is_mobileconfig %}
         <div class="my-4 alert alert-info ">{{ lang.login.mobileconfig_info }}</div>
         {% endif %}
+        {% if identify_first %}
+        {# Two steps: the address on its own, then whatever its domain accepts.
+           Which that is cannot be shown up front - listing the domains that
+           have a provider would tell anyone opening this page who is hosted on
+           this server. #}
+        {% if not login_identify %}
+        <form method="post" autofill="off">
+          <input type="hidden" name="login_identify" value="1">
+          <div class="d-flex mt-3">
+            <label class="visually-hidden" for="login_user">{{ lang.login.email }}</label>
+            <div class="input-group">
+              <div class="input-group-text"><i class="bi bi-envelope-fill"></i></div>
+              <input name="login_user" autocorrect="off" autocapitalize="none" type="{% if is_mobileconfig %}email{% else %}text{% endif %}" id="login_user" class="form-control" placeholder="{{ lang.login.email }}" required="" autofocus="" autocomplete="username">
+            </div>
+          </div>
+          <div class="d-flex justify-content-between mt-4" style="position: relative">
+            <button type="submit" class="btn btn-xs-lg btn-success w-100 mt-2 mx-auto" style="max-width: 400px;" value="Continue">{{ lang.login.continue_login }}</button>
+          </div>
+        </form>
+        {% if custom_login.force_sso != 1 %}
+        <div class="hr-title"><strong>{{ lang.login.other_logins }}</strong></div>
+        <div class="d-flex flex-column align-items-center">
+          <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="#" id="fido2-login"><i class="bi bi-shield-fill-check"></i> {{ lang.login.fido2_webauthn }}</a>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="d-flex align-items-center justify-content-between mt-3">
+          <span class="text-break"><i class="bi bi-person-fill me-2"></i>{{ login_identify }}</span>
+          <a class="text-nowrap ms-3" style="font-size: 0.9rem;" href="?{{ query_string({'login_forget': 1}) }}">{{ lang.login.change_address }}</a>
+        </div>
+        {% if identify_sso %}
+        <div class="d-flex flex-column align-items-center">
+          {% include 'user/login-sso.twig' with {'sso_primary': true} %}
+        </div>
+        {% endif %}
+        {% if custom_login.force_sso != 1 %}
+          {% if identify_sso %}
+          <div class="hr-title"><strong>{{ lang.login.other_logins }}</strong></div>
+          {% endif %}
+          {% include 'user/login-password.twig' with {'pw_primary': not identify_sso} %}
+          <div class="d-flex flex-column align-items-center">
+            <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="#" id="fido2-login"><i class="bi bi-shield-fill-check"></i> {{ lang.login.fido2_webauthn }}</a>
+          </div>
+        {% elseif not identify_sso %}
+        {# Single sign-on is the only way in and none serves this address. Say
+           so, rather than showing a page with no way to log in at all. #}
+        <div class="my-4 alert alert-danger">{{ lang.danger.iam_sso_unavailable }}</div>
+        {% endif %}
+        {% endif %}
+        {% else %}
+        {# Nothing here depends on the domain, so both are asked for at once.
+           An address given in the URL still fills the form in. #}
         {% if custom_login.force_sso != 1 %}
         <form method="post" autofill="off">
           <div class="d-flex mt-3">
             <label class="visually-hidden" for="login_user">{{ lang.login.username }}</label>
             <div class="input-group">
               <div class="input-group-text"><i class="bi bi-person-fill"></i></div>
-              <input name="login_user" autocorrect="off" autocapitalize="none" type="{% if is_mobileconfig %}email{% else %}text{% endif %}" id="login_user" class="form-control" placeholder="{{ lang.login.email }}" required="" autofocus="" autocomplete="username">
+              <input name="login_user" autocorrect="off" autocapitalize="none" type="{% if is_mobileconfig %}email{% else %}text{% endif %}" id="login_user" class="form-control" placeholder="{{ lang.login.email }}" value="{{ login_identify }}" required="" {% if not login_identify %}autofocus=""{% endif %} autocomplete="username">
             </div>
           </div>
           <div class="d-flex mt-3">
             <label class="visually-hidden" for="pass_user">{{ lang.login.password }}</label>
             <div class="input-group">
               <div class="input-group-text"><i class="bi bi-lock-fill"></i></div>
-              <input name="pass_user" type="password" id="pass_user" class="form-control" placeholder="{{ lang.login.password }}" required="" autocomplete="current-password">
+              <input name="pass_user" type="password" id="pass_user" class="form-control" placeholder="{{ lang.login.password }}" required="" {% if login_identify %}autofocus=""{% endif %} autocomplete="current-password">
             </div>
           </div>
           <div class="mt-2 text-muted" style="font-size: 0.9rem;">
@@ -75,28 +127,13 @@
         {% endif %}
         <div class="d-flex flex-column align-items-center">
           {% if has_iam_sso %}
-            {% if iam_sso_discovery %}
-            {# Some domains bring their own identity provider, so which one to
-               send the user to depends on their address. It is asked for here
-               instead of listing the domains, which would tell anyone opening
-               the login page who is hosted on this server. #}
-            <form method="post" class="w-100 d-flex flex-column align-items-center" autocomplete="on">
-              <input type="hidden" name="iam_sso" value="1">
-              <div class="input-group mt-2" style="max-width: 400px;">
-                <div class="input-group-text"><i class="bi bi-envelope-fill"></i></div>
-                <label class="visually-hidden" for="iam_sso_login">{{ lang.login.email }}</label>
-                <input name="iam_sso_login" id="iam_sso_login" type="email" class="form-control" placeholder="{{ lang.login.email }}" autocorrect="off" autocapitalize="none" autocomplete="username" required>
-              </div>
-              <button type="submit" class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</button>
-            </form>
-            {% else %}
-            <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="/?iam_sso=1"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</a>
-            {% endif %}
+          <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="/?iam_sso=1"><i class="bi bi-cloud-arrow-up-fill"></i> {{ lang.admin.iam_sso }}</a>
           {% endif %}
           {% if custom_login.force_sso != 1 %}
           <a class="btn btn-xs-lg btn-secondary w-100 mt-2" style="max-width: 400px;" href="#" id="fido2-login"><i class="bi bi-shield-fill-check"></i> {{ lang.login.fido2_webauthn }}</a>
           {% endif %}
         </div>
+        {% endif %}
         {% if login_delay %}
         <p><div class="my-4 alert alert-info">{{ lang.login.delayed|format(login_delay) }}</b></div></p>
         {% endif %}
