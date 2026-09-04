@@ -849,6 +849,8 @@
     },
     "login": {
         "back_to_mailcow": "Вернуться к mailcow",
+        "change_address": "Использовать другой адрес",
+        "continue_login": "Продолжить",
         "delayed": "Вход был отложен на %s секунд.",
         "fido2_webauthn": "FIDO2/WebAuthn Login",
         "forgot_password": "> Забыли пароль?",

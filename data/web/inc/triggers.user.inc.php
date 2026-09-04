@@ -1,10 +1,34 @@
 <?php
+// Identifier-first login: the first step collects nothing but the address, so
+// the second can offer what its domain actually accepts. It is kept in the
+// session rather than replayed through the form, so a rejected password comes
+// back to the address already given instead of to an empty page.
+if (isset($_GET['login_forget'])) {
+  unset($_SESSION['login_identify']);
+}
+elseif (isset($_POST['login_identify'])) {
+  $identify_login = strtolower(trim((string)($_POST['login_user'] ?? '')));
+  if ($identify_login !== '') {
+    $_SESSION['login_identify'] = $identify_login;
+  }
+}
+// The address may also arrive in the URL - /?login_hint=user@example.org - so a
+// link from a portal or an intranet lands straight on what that domain accepts.
+// Sending someone through to the provider without a stop still takes
+// /?iam_sso=1&login_user=..., which this deliberately is not.
+elseif (isset($_GET['login_hint'])) {
+  $identify_hint = login_identify_hint($_GET['login_hint']);
+  if ($identify_hint !== '') {
+    $_SESSION['login_identify'] = $identify_hint;
+  }
+}
+
 // handle iam authentication
 // Which provider to use depends on the address, since a domain can bring its
 // own: the login page hands the address over here, and everything downstream
 // works from the domain it resolves to.
 if (isset($_REQUEST['iam_sso'])){
-  $sso_login = strtolower(trim((string)($_REQUEST['iam_sso_login'] ?? $_REQUEST['login_user'] ?? '')));
+  $sso_login = strtolower(trim((string)($_REQUEST['iam_sso_login'] ?? $_REQUEST['login_user'] ?? $_REQUEST['login_hint'] ?? '')));
   $redirect_uri = identity_provider('get-redirect', identity_provider_login_domain($sso_login));
   if (empty($redirect_uri)) {
     // No provider serves that address. Say so rather than bouncing the user

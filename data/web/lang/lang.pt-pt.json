@@ -216,6 +216,8 @@
         "no_action": "Nenhuma ação foi definida"
     },
     "login": {
+        "change_address": "Utilizar outro endereço",
+        "continue_login": "Continuar",
         "delayed": "Sua entrada será atrasada por %s segundos.",
         "login": "Entrar",
         "password": "Senha",

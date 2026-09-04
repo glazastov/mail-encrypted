@@ -2513,6 +2513,56 @@ function identity_provider_login_domain($login) {
   return ($at === false) ? '' : substr($login, $at + 1);
 }
 
+// The authsources a user can be redirected to. LDAP is a provider too, but it
+// is answered with a password on mailcow's own form, so it never changes where
+// the login page sends anyone.
+function identity_provider_redirect_authsources() {
+  return array('keycloak', 'generic-oidc');
+}
+
+// Whether the login page has to ask for the address before it can offer
+// anything. Only once a domain brings a provider of its own is there a choice
+// to make; an appliance with nothing but the appliance-wide provider keeps the
+// single form and single button it always had.
+function login_identify_required() {
+  foreach (identity_provider_rows() as $domain => $settings) {
+    if ($domain !== '' &&
+        in_array($settings['authsource'] ?? '', identity_provider_redirect_authsources(), true)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// An address handed to the login page in the URL, normalised, or '' when what
+// arrived is not one. A hint only skips the step that asks: what is offered
+// still follows from the domain, and the password or the provider still has to
+// answer for the address.
+function login_identify_hint($value) {
+  $value = strtolower(trim((string)$value));
+  return filter_var($value, FILTER_VALIDATE_EMAIL) ? $value : '';
+}
+
+// What the login page may offer an address once it has been given: a provider
+// to be sent to, a password, or both.
+//
+// A domain goes to single sign-on when it brought a provider of its own.
+// Bringing none is not a request to use someone else's - those users log in
+// against mailcow as they always did, whatever the appliance-wide provider is.
+// Forcing single sign-on is the one thing that says otherwise, and then the
+// appliance-wide provider stands in for the domains that configured nothing.
+function login_identify_options($login, $force_sso = false) {
+  $login = strtolower(trim((string)$login));
+  $sso = false;
+  if ($login !== '') {
+    $domain = identity_provider_login_domain($login);
+    $settings = identity_provider_has_own($domain) ? identity_provider('get', $domain)
+              : ($force_sso ? identity_provider('get') : array());
+    $sso = in_array($settings['authsource'] ?? '', identity_provider_redirect_authsources(), true);
+  }
+  return array('sso' => $sso, 'password' => !$force_sso);
+}
+
 function identity_provider($_action = null, $_data = null, $_extra = null) {
   global $pdo;
   global $iam_provider;
@@ -3733,6 +3783,9 @@ function set_user_loggedin_session($user) {
   unset($_SESSION['pending_mailcow_cc_username']);
   unset($_SESSION['pending_mailcow_cc_role']);
   unset($_SESSION['pending_tfa_methods']);
+  // The address the login page was asked to remember has served its purpose;
+  // leaving it behind would greet the next logout with a stale name.
+  unset($_SESSION['login_identify']);
 }
 function protect_route($allowed_roles = ['admin', 'domainadmin', 'user'], $redirects = []) {
   // Check if user is authenticated

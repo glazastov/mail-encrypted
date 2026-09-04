@@ -852,6 +852,8 @@
     },
     "login": {
         "back_to_mailcow": "Zurück zu mailcow",
+        "change_address": "Andere Adresse verwenden",
+        "continue_login": "Weiter",
         "delayed": "Login wurde zur Sicherheit um %s Sekunde/n verzögert.",
         "fido2_webauthn": "FIDO2/WebAuthn Login",
         "forgot_password": "> Passwort vergessen?",
