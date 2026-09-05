@@ -433,6 +433,45 @@ function recursiveBase64StrToArrayBuffer(obj) {
     });
   {% endif %}
 
+  {% if pending_pgp_setup and not pending_tfa_setup and not pending_tfa_methods %}
+    var setupPGPModal = new bootstrap.Modal(document.getElementById("SetupPGPModal"), {
+      backdrop: 'static',
+      keyboard: false
+    });
+    setupPGPModal.show();
+
+    var setupPGPMessages = {{ lang.danger|json_encode|raw }};
+
+    $('#setupPGPModalForm').on('submit', function(e) {
+      e.preventDefault();
+      $('#setupPGPAlert').hide();
+      $.ajax({
+        type: 'POST',
+        url: '/api/v1/edit/pgp-storage',
+        data: {
+          attr: JSON.stringify({pgp_storage_encrypt: '1', pgp_public_key: $('#setupPGPKey').val()}),
+          items: JSON.stringify(['{{ mailcow_cc_username }}']),
+          csrf_token: '{{ csrf_token }}'
+        },
+        dataType: 'json',
+        success: function(data) {
+          if (data && data[0] && data[0].type === 'success') {
+            window.location.reload();
+            return;
+          }
+          var msg = (data && data[0] && data[0].msg) ? data[0].msg : '';
+          if (Array.isArray(msg)) {
+            msg = msg[0];
+          }
+          $('#setupPGPAlert').show().text(setupPGPMessages[msg] || msg || setupPGPMessages['pgp_key_not_armored']);
+        },
+        error: function() {
+          $('#setupPGPAlert').show().text(setupPGPMessages['pgp_key_not_armored']);
+        }
+      });
+    });
+  {% endif %}
+
   {% if pending_pw_update_modal and not pending_tfa_setup and not pending_tfa_methods %}
     var changePWModal = new bootstrap.Modal(document.getElementById("ChangePWModal"), {
       backdrop: 'static',

@@ -176,7 +176,8 @@ def load_public_key(candidates):
             # domain row is missing keeps the behaviour it had before the
             # setting existed, hence the LEFT JOIN and the default of '1'.
             cur.execute(
-                "SELECT mailbox.attributes, IFNULL(domain.pgp_storage, '1') AS domain_pgp_storage"
+                "SELECT mailbox.attributes, IFNULL(domain.pgp_storage, '1') AS domain_pgp_storage,"
+                " IFNULL(domain.pgp_enforce, 'none') AS domain_pgp_enforce"
                 " FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain"
                 " WHERE mailbox.username = %s AND mailbox.active IN ('1', '2')",
                 (candidate,),
@@ -190,9 +191,11 @@ def load_public_key(candidates):
                 continue
             attrs = json.loads(row.get("attributes") or "{}")
             pgp_encrypt = str(attrs.get("pgp_storage_encrypt", "0"))
+            enforced = str(row.get("domain_pgp_enforce") or "none") != "none"
             pgp_key = attrs.get("pgp_public_key")
-            log_debug("load_public_key: " + candidate + " pgp_storage_encrypt=" + pgp_encrypt + " has_key=" + str(bool(pgp_key)))
-            if pgp_encrypt == "1" and pgp_key:
+            log_debug("load_public_key: " + candidate + " pgp_storage_encrypt=" + pgp_encrypt +
+                      " domain_enforced=" + str(enforced) + " has_key=" + str(bool(pgp_key)))
+            if (pgp_encrypt == "1" or enforced) and pgp_key:
                 hide = str(attrs.get("pgp_encrypt_subject", "0")) == "1"
                 log_debug("load_public_key: found key for " + candidate +
                           " key_len=" + str(len(pgp_key)) +

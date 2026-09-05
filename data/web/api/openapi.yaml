@@ -570,6 +570,8 @@ paths:
                 mailboxes: "10"
                 maxquota: "10240"
                 pgp_storage: "1"
+                pgp_enforce: none
+                tfa_enforce: none
                 quota: "10240"
                 relay_all_recipients: "0"
                 rl_frame: s
@@ -613,6 +615,24 @@ paths:
                     unencrypted and users cannot turn their own switch on.
                     Defaults to enabled
                   type: boolean
+                pgp_enforce:
+                  description: >-
+                    who requires PGP storage encryption of every mailbox in
+                    this domain - none, domainadmin or admin. While it is
+                    required, mailbox owners are asked for a public key at
+                    login and cannot turn encryption off; a domain admin may
+                    set and lift domainadmin but never touch admin. Setting
+                    anything but none requires pgp_storage to be enabled.
+                    Defaults to none
+                  type: string
+                tfa_enforce:
+                  description: >-
+                    who requires two-factor authentication of every mailbox in
+                    this domain - none, domainadmin or admin. While it is
+                    required, mailbox owners must set it up at login and cannot
+                    remove it; a domain admin may set and lift domainadmin but
+                    never touch admin. Defaults to none
+                  type: string
                 quota:
                   description: maximum quota for this domain (for all mailboxes in sum)
                   type: number
@@ -3186,6 +3206,8 @@ paths:
                   mailboxes: "10"
                   maxquota: "10240"
                   pgp_storage: "1"
+                  pgp_enforce: none
+                  tfa_enforce: none
                   quota: "10240"
                   relay_all_recipients: "0"
                   relayhost: "2"
@@ -3226,6 +3248,24 @@ paths:
                         encryption; when disabled, delivery stores messages
                         unencrypted and users cannot turn their own switch on
                       type: boolean
+                    pgp_enforce:
+                      description: >-
+                        who requires PGP storage encryption of every mailbox in
+                        this domain - none, domainadmin or admin. While it is
+                        required, mailbox owners are asked for a public key at
+                        login and cannot turn encryption off; a domain admin
+                        may set and lift domainadmin but never touch admin.
+                        Setting anything but none requires pgp_storage to be
+                        enabled
+                      type: string
+                    tfa_enforce:
+                      description: >-
+                        who requires two-factor authentication of every mailbox
+                        in this domain - none, domainadmin or admin. While it
+                        is required, mailbox owners must set it up at login and
+                        cannot remove it; a domain admin may set and lift
+                        domainadmin but never touch admin
+                      type: string
                     quota:
                       description: maximum quota for this domain (for all mailboxes in sum)
                       type: number
@@ -3683,6 +3723,10 @@ paths:
         key - either sent in the same request or already stored - and fails
         with `pgp_domain_disabled` when the mailbox's domain has PGP storage
         disabled (see the `pgp_storage` attribute of `add`/`edit domain`).
+        When the domain requires encryption (`pgp_enforce`), turning it off
+        fails with `pgp_enforced_domain` and removing the public key fails with
+        `pgp_key_required`, for every role including the domain admin: lift the
+        requirement on the domain first.
       operationId: Update mailbox PGP storage encryption
       requestBody:
         content:

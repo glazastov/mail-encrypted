@@ -571,7 +571,11 @@
         "pgp_key_bad_base64": "The body of the key is not valid base64.",
         "pgp_key_bad_checksum": "Checksum mismatch - the key looks truncated or corrupted.",
         "pgp_key_not_public_key": "The block does not start with an OpenPGP public key packet.",
-        "pgp_key_required": "A public key is required to enable PGP storage encryption."
+        "pgp_key_required": "A public key is required to enable PGP storage encryption.",
+        "pgp_enforced_domain": "PGP storage encryption is required for this domain and cannot be turned off.",
+        "pgp_enforce_requires_storage": "PGP storage encryption cannot be required for a domain that is not allowed to use it.",
+        "pgp_enforce_locked": "Only the administrator can change the PGP storage requirement of this domain.",
+        "tfa_enforce_locked": "Only the administrator can change the two-factor requirement of this domain."
     },
     "datatables": {
         "collapse_all": "Collapse All",
@@ -801,7 +805,13 @@
         "title": "Edit object",
         "unchanged_if_empty": "If unchanged leave blank",
         "username": "Username",
-        "validate_save": "Validate and save"
+        "validate_save": "Validate and save",
+        "pgp_enforce": "Require PGP storage encryption",
+        "pgp_enforce_info": "Every mailbox of this domain must store its mail encrypted. Users are asked for a public key when they log in and cannot turn encryption off afterwards. Requires PGP storage encryption to be allowed for the domain.",
+        "pgp_enforce_locked": "The administrator requires PGP storage encryption for this domain. It cannot be lifted here.",
+        "tfa_enforce": "Require two-factor authentication",
+        "tfa_enforce_info": "Every mailbox of this domain must set up two-factor authentication at the next login and cannot remove it afterwards.",
+        "tfa_enforce_locked": "The administrator requires two-factor authentication for this domain. It cannot be lifted here."
     },
     "fido2": {
         "confirm": "Confirm",
@@ -1265,7 +1275,8 @@
         "webauthn": "WebAuthn authentication",
         "waiting_usb_auth": "<i>Waiting for USB device...</i><br><br>Please tap the button on your USB device now.",
         "waiting_usb_register": "<i>Waiting for USB device...</i><br><br>Please enter your password above and confirm your registration by tapping the button on your USB device.",
-        "yubi_otp": "Yubico OTP authentication"
+        "yubi_otp": "Yubico OTP authentication",
+        "force_tfa_domain": "Two-factor authentication is required for the whole domain, so it cannot be turned off for a single mailbox."
     },
     "user": {
         "pgp_domain_disabled": "The administrator has disabled PGP storage encryption for this domain. Your settings are kept and take effect again if it is allowed once more.",
@@ -1464,7 +1475,9 @@
         "pgp_js_valid": "Valid public key (%s bytes).",
         "pgp_js_file_too_large": "File is too large (128 KB maximum).",
         "pgp_js_file_unreadable": "Could not read that file.",
-        "pgp_js_key_required": "A public key is required to enable PGP storage encryption."
+        "pgp_js_key_required": "A public key is required to enable PGP storage encryption.",
+        "pgp_domain_enforced": "PGP storage encryption is required for this domain. It cannot be turned off, and a public key has to stay configured.",
+        "pgp_setup_required": "PGP storage encryption is required for your domain. Paste your OpenPGP public key to continue - only the public key is stored, never the private one."
     },
     "warning": {
         "cannot_delete_self": "Cannot delete logged in user",

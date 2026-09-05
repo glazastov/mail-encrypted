@@ -411,6 +411,33 @@
   </div>
 </div>
 {% endif %}
+{% if pending_pgp_setup and not pending_tfa_setup and not pending_tfa_methods %}
+<div class="modal fade" id="SetupPGPModal" tabindex="-1" role="dialog" aria-labelledby="SetupPGPModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">{{ lang.user.pgp_storage }}</h3>
+        <form method="post" class="d-inline">
+          <button type="submit" name="logout" value="1" class="btn-close" aria-label="Close"></button>
+        </form>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-shield-lock"></i> {{ lang.user.pgp_setup_required }}
+        </div>
+        <form role="form" id="setupPGPModalForm">
+          <div class="mb-3">
+            <textarea class="form-control" id="setupPGPKey" rows="8" spellcheck="false" placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----" required></textarea>
+          </div>
+          <p class="text-muted">{{ lang.user.pgp_storage_help }}</p>
+          <div id="setupPGPAlert" class="alert alert-danger" style="display:none"></div>
+          <button class="btn btn-sm btn-success" type="submit">{{ lang.user.save_changes }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% if pending_pw_update_modal and not pending_tfa_methods %}
 <div class="modal fade" id="ChangePWModal" tabindex="-1" role="dialog" aria-labelledby="ChangePWModalLabel">
   <div class="modal-dialog" role="document">

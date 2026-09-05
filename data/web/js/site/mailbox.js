@@ -233,6 +233,8 @@ $(document).ready(function() {
     // value for it; those domains were allowed to use it, so that is what an
     // absent value means here too.
     $('#addDomain_pgp_storage').prop('checked', template.pgp_storage === undefined || template.pgp_storage == 1);
+    $('#addDomain_pgp_enforce').prop('checked', template.pgp_enforce !== undefined && template.pgp_enforce != 'none');
+    $('#addDomain_tfa_enforce').prop('checked', template.tfa_enforce !== undefined && template.tfa_enforce != 'none');
 
     if (template.active == 1){
       $('#addDomain_active').prop('checked', true);

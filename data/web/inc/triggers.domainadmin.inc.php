@@ -21,7 +21,7 @@ if (isset($_POST["verify_tfa_login"])) {
       unset($_SESSION['pending_tfa_methods']);
 
       // If pending actions exist, redirect to /domainadmin to show modal
-      if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+      if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
         header("Location: /domainadmin");
         die();
       }
@@ -76,7 +76,7 @@ if (isset($_POST["login_user"]) && isset($_POST["pass_user"])) {
 		$_SESSION['mailcow_cc_username'] = $login_user;
 		$_SESSION['mailcow_cc_role'] = "domainadmin";
     // If pending actions exist, redirect to /domainadmin to show modal
-    if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+    if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
       header("Location: /domainadmin");
       die();
     }

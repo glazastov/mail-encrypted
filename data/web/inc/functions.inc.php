@@ -1396,18 +1396,7 @@ function set_tfa($_data) {
         );
     break;
     case "none":
-      // Block TFA removal if force_tfa policy is active
-      $is_forced_tfa = false;
-      if ($_SESSION['mailcow_cc_role'] === 'user') {
-        $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `mailbox` WHERE `username` = ?");
-        $stmt_check->execute(array($username));
-        $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-      } else {
-        $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `admin` WHERE `username` = ?");
-        $stmt_check->execute(array($username));
-        $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-      }
-      if ($is_forced_tfa) {
+      if (tfa_removal_blocked($username, $_SESSION['mailcow_cc_role'])) {
         $_SESSION['return'][] =  array(
           'type' => 'danger',
           'log' => array(__FUNCTION__, $_data_log),
@@ -1667,18 +1656,7 @@ function unset_tfa_key($_data) {
       return false;
     }
 
-    // Block key removal if force_tfa policy is active
-    $is_forced_tfa = false;
-    if ($_SESSION['mailcow_cc_role'] === 'user') {
-      $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `mailbox` WHERE `username` = ?");
-      $stmt_check->execute(array($username));
-      $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-    } else {
-      $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `admin` WHERE `username` = ?");
-      $stmt_check->execute(array($username));
-      $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-    }
-    if ($is_forced_tfa) {
+    if (tfa_removal_blocked($username, $_SESSION['mailcow_cc_role'])) {
       $_SESSION['return'][] =  array(
         'type' => 'danger',
         'log' => array(__FUNCTION__, $_data_log),
@@ -3786,6 +3764,12 @@ function set_user_loggedin_session($user) {
   // The address the login page was asked to remember has served its purpose;
   // leaving it behind would greet the next logout with a stale name.
   unset($_SESSION['login_identify']);
+  if (pgp_setup_pending($user)) {
+    $_SESSION['pending_pgp_setup'] = true;
+  }
+  else {
+    unset($_SESSION['pending_pgp_setup']);
+  }
 }
 function protect_route($allowed_roles = ['admin', 'domainadmin', 'user'], $redirects = []) {
   // Check if user is authenticated
@@ -3799,7 +3783,7 @@ function protect_route($allowed_roles = ['admin', 'domainadmin', 'user'], $redir
   }
 
   // Check for pending actions (2FA setup, password update)
-  if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+  if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
     $pending_redirect = '/';
     if ($_SESSION['mailcow_cc_role'] === 'admin') {
       $pending_redirect = '/admin';

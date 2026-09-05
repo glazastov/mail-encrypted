@@ -104,6 +104,92 @@ function pgp_flag($value) {
   return ($value === '0' || $value === 0 || $value === false || $value === null || $value === '') ? 0 : 1;
 }
 
+function enforce_level($value) {
+  if (is_array($value)) {
+    $value = end($value);
+  }
+  if (!is_string($value)) {
+    return 'none';
+  }
+  $value = strtolower(trim($value));
+  return in_array($value, array('none', 'domainadmin', 'admin'), true) ? $value : 'none';
+}
+
+function enforce_may_set($role, $current, $new) {
+  $current = enforce_level($current);
+  $new = enforce_level($new);
+  if ($current === $new) {
+    return true;
+  }
+  if ($role === 'admin') {
+    return true;
+  }
+  if ($role === 'domainadmin') {
+    return $current !== 'admin' && $new !== 'admin';
+  }
+  return false;
+}
+
+function pgp_domain_enforces($pgp_storage, $pgp_enforce) {
+  return pgp_flag($pgp_storage ?? 1) === 1 && enforce_level($pgp_enforce) !== 'none';
+}
+
+function pgp_setup_required($pgp_storage, $pgp_enforce, $attributes) {
+  if (!pgp_domain_enforces($pgp_storage, $pgp_enforce)) {
+    return false;
+  }
+  if (!is_array($attributes)) {
+    return true;
+  }
+  return trim((string)($attributes['pgp_public_key'] ?? '')) === '';
+}
+
+function tfa_removal_blocked($username, $role) {
+  global $pdo;
+  if ($role === 'user') {
+    $stmt = $pdo->prepare("SELECT `mailbox`.`attributes`,
+        IFNULL(`domain`.`tfa_enforce`, 'none') AS `tfa_enforce`
+        FROM `mailbox`
+        LEFT JOIN `domain` ON `domain`.`domain` = `mailbox`.`domain`
+        WHERE `mailbox`.`username` = :username");
+    $stmt->execute(array(':username' => $username));
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (empty($row)) {
+      return false;
+    }
+    return tfa_is_forced(json_decode($row['attributes'], true), $row['tfa_enforce']);
+  }
+  $stmt = $pdo->prepare("SELECT JSON_VALUE(`attributes`, '$.force_tfa') FROM `admin` WHERE `username` = :username");
+  $stmt->execute(array(':username' => $username));
+  return $stmt->fetchColumn() == '1';
+}
+
+function pgp_setup_pending($username) {
+  global $pdo;
+  $stmt = $pdo->prepare("SELECT `mailbox`.`attributes`,
+      IFNULL(`domain`.`pgp_storage`, '1') AS `pgp_storage`,
+      IFNULL(`domain`.`pgp_enforce`, 'none') AS `pgp_enforce`
+      FROM `mailbox`
+      LEFT JOIN `domain` ON `domain`.`domain` = `mailbox`.`domain`
+      WHERE `mailbox`.`username` = :username");
+  $stmt->execute(array(':username' => $username));
+  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  if (empty($row)) {
+    return false;
+  }
+  return pgp_setup_required($row['pgp_storage'], $row['pgp_enforce'], json_decode($row['attributes'], true));
+}
+
+function tfa_is_forced($attributes, $tfa_enforce) {
+  if (enforce_level($tfa_enforce) !== 'none') {
+    return true;
+  }
+  if (!is_array($attributes)) {
+    return false;
+  }
+  return intval($attributes['force_tfa'] ?? 0) === 1;
+}
+
 function mailbox($_action, $_type, $_data = null, $_extra = null) {
   global $pdo;
   global $redis;
@@ -660,6 +746,16 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           // Older templates predate the setting; a missing value means allowed,
           // which is what every domain got before it existed.
           $pgp_storage = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : intval($DOMAIN_DEFAULT_ATTRIBUTES['pgp_storage'] ?? 1);
+          $pgp_enforce = (isset($_data['pgp_enforce'])) ? enforce_level($_data['pgp_enforce']) : enforce_level($DOMAIN_DEFAULT_ATTRIBUTES['pgp_enforce'] ?? 'none');
+          $tfa_enforce = (isset($_data['tfa_enforce'])) ? enforce_level($_data['tfa_enforce']) : enforce_level($DOMAIN_DEFAULT_ATTRIBUTES['tfa_enforce'] ?? 'none');
+          if ($pgp_enforce !== 'none' && $pgp_storage != 1) {
+            $_SESSION['return'][] = array(
+              'type' => 'danger',
+              'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+              'msg' => 'pgp_enforce_requires_storage'
+            );
+            return false;
+          }
           if ($relay_all_recipients == 1) {
             $backupmx = '1';
           }
@@ -715,8 +811,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             ':domain' => '%@' . $domain
           ));
           // save domain
-          $stmt = $pdo->prepare("INSERT INTO `domain` (`domain`, `description`, `aliases`, `mailboxes`, `defquota`, `maxquota`, `quota`, `backupmx`, `gal`, `pgp_storage`, `active`, `relay_unknown_only`, `relay_all_recipients`)
-            VALUES (:domain, :description, :aliases, :mailboxes, :defquota, :maxquota, :quota, :backupmx, :gal, :pgp_storage, :active, :relay_unknown_only, :relay_all_recipients)");
+          $stmt = $pdo->prepare("INSERT INTO `domain` (`domain`, `description`, `aliases`, `mailboxes`, `defquota`, `maxquota`, `quota`, `backupmx`, `gal`, `pgp_storage`, `pgp_enforce`, `tfa_enforce`, `active`, `relay_unknown_only`, `relay_all_recipients`)
+            VALUES (:domain, :description, :aliases, :mailboxes, :defquota, :maxquota, :quota, :backupmx, :gal, :pgp_storage, :pgp_enforce, :tfa_enforce, :active, :relay_unknown_only, :relay_all_recipients)");
           $stmt->execute(array(
             ':domain' => $domain,
             ':description' => $description,
@@ -728,6 +824,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             ':backupmx' => $backupmx,
             ':gal' => $gal,
             ':pgp_storage' => $pgp_storage,
+            ':pgp_enforce' => $pgp_enforce,
+            ':tfa_enforce' => $tfa_enforce,
             ':active' => $active,
             ':relay_unknown_only' => $relay_unknown_only,
             ':relay_all_recipients' => $relay_all_recipients
@@ -1794,6 +1892,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $attr['active']                     = isset($_data['active']) ? intval($_data['active']) : 1;
           $attr['gal']                        = (isset($_data['gal'])) ? intval($_data['gal']) : 1;
           $attr['pgp_storage']                = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : 1;
+          $attr['pgp_enforce']                = enforce_level($_data['pgp_enforce'] ?? 'none');
+          $attr['tfa_enforce']                = enforce_level($_data['tfa_enforce'] ?? 'none');
           $attr['backupmx']                   = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : 0;
           $attr['relay_all_recipients']       = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : 0;
           $attr['relay_unknown_only']          = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : 0;
@@ -2426,6 +2526,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               );
               continue;
             }
+            $pgp_enforced = pgp_domain_enforces($is_now['domain_pgp_storage'] ?? 1, $is_now['domain_pgp_enforce'] ?? 'none');
+            if ($pgp_enforced && !$pgp_storage_encrypt) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                'msg' => 'pgp_enforced_domain'
+              );
+              continue;
+            }
             if ($pgp_public_key !== '') {
               $pgp_error = null;
               if (!pgp_validate_public_key($pgp_public_key, $pgp_error)) {
@@ -2441,7 +2550,7 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               // Store it normalised so delivery never has to repair the armor.
               $pgp_public_key = pgp_normalize_public_key($pgp_public_key);
             }
-            elseif ($pgp_storage_encrypt) {
+            elseif ($pgp_storage_encrypt || $pgp_enforced) {
               $_SESSION['return'][] = array(
                 'type' => 'danger',
                 'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
@@ -2478,6 +2587,9 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               ':pgp_failure_mode' => $pgp_failure_mode,
               ':username' => $username
             ));
+            if ($pgp_public_key !== '' && isset($_SESSION['mailcow_cc_username']) && $username === $_SESSION['mailcow_cc_username']) {
+              unset($_SESSION['pending_pgp_setup']);
+            }
             $_SESSION['return'][] = array(
               'type' => 'success',
               'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
@@ -3034,6 +3146,32 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 $description          = (!empty($_data['description']) && isset($_SESSION['acl']['domain_desc']) && $_SESSION['acl']['domain_desc'] == "1") ? $_data['description'] : $is_now['description'];
                 (int)$relayhost       = (isset($_data['relayhost']) && isset($_SESSION['acl']['domain_relayhost']) && $_SESSION['acl']['domain_relayhost'] == "1") ? intval($_data['relayhost']) : intval($is_now['relayhost']);
                 $tags                 = (is_array($_data['tags']) ? $_data['tags'] : array());
+                $pgp_enforce          = (isset($_data['pgp_enforce'])) ? enforce_level($_data['pgp_enforce']) : enforce_level($is_now['pgp_enforce']);
+                $tfa_enforce          = (isset($_data['tfa_enforce'])) ? enforce_level($_data['tfa_enforce']) : enforce_level($is_now['tfa_enforce']);
+                if (!enforce_may_set('domainadmin', $is_now['pgp_enforce'], $pgp_enforce)) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => 'pgp_enforce_locked'
+                  );
+                  continue;
+                }
+                if (!enforce_may_set('domainadmin', $is_now['tfa_enforce'], $tfa_enforce)) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => 'tfa_enforce_locked'
+                  );
+                  continue;
+                }
+                if ($pgp_enforce !== 'none' && !pgp_flag($is_now['pgp_storage'])) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => 'pgp_domain_disabled'
+                  );
+                  continue;
+                }
               }
               else {
                 $_SESSION['return'][] = array(
@@ -3046,11 +3184,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
 
               $stmt = $pdo->prepare("UPDATE `domain` SET
               `description` = :description,
-              `gal` = :gal
+              `gal` = :gal,
+              `pgp_enforce` = :pgp_enforce,
+              `tfa_enforce` = :tfa_enforce
                 WHERE `domain` = :domain");
               $stmt->execute(array(
                 ':description' => $description,
                 ':gal' => $gal,
+                ':pgp_enforce' => $pgp_enforce,
+                ':tfa_enforce' => $tfa_enforce,
                 ':domain' => $domain
               ));
               // save tags
@@ -3084,6 +3226,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 $backupmx             = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : $is_now['backupmx'];
                 $gal                  = (isset($_data['gal'])) ? intval($_data['gal']) : $is_now['gal'];
                 $pgp_storage          = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : $is_now['pgp_storage'];
+                $pgp_enforce          = (isset($_data['pgp_enforce'])) ? enforce_level($_data['pgp_enforce']) : enforce_level($is_now['pgp_enforce']);
+                $tfa_enforce          = (isset($_data['tfa_enforce'])) ? enforce_level($_data['tfa_enforce']) : enforce_level($is_now['tfa_enforce']);
                 $relay_all_recipients = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : $is_now['relay_all_recipients'];
                 $relay_unknown_only   = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : $is_now['relay_unknown_only'];
                 $relayhost            = (isset($_data['relayhost'])) ? intval($_data['relayhost']) : $is_now['relayhost'];
@@ -3100,6 +3244,14 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 if ($relay_unknown_only == '1') {
                   $backupmx = '1';
                   $relay_all_recipients = '1';
+                }
+                if ($pgp_enforce !== 'none' && $pgp_storage != 1) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => 'pgp_enforce_requires_storage'
+                  );
+                  continue;
                 }
               }
               else {
@@ -3199,6 +3351,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               `backupmx` = :backupmx,
               `gal` = :gal,
               `pgp_storage` = :pgp_storage,
+              `pgp_enforce` = :pgp_enforce,
+              `tfa_enforce` = :tfa_enforce,
               `active` = :active,
               `quota` = :quota,
               `defquota` = :defquota,
@@ -3214,6 +3368,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 ':backupmx' => $backupmx,
                 ':gal' => $gal,
                 ':pgp_storage' => $pgp_storage,
+                ':pgp_enforce' => $pgp_enforce,
+                ':tfa_enforce' => $tfa_enforce,
                 ':active' => $active,
                 ':quota' => $quota,
                 ':defquota' => $defquota,
@@ -3299,6 +3455,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             $attr['active']                     = isset($_data['active']) ? intval($_data['active']) : 1;
             $attr['gal']                        = (isset($_data['gal'])) ? intval($_data['gal']) : 1;
             $attr['pgp_storage']                = (isset($_data['pgp_storage'])) ? intval($_data['pgp_storage']) : 1;
+            $attr['pgp_enforce']                = enforce_level($_data['pgp_enforce'] ?? 'none');
+            $attr['tfa_enforce']                = enforce_level($_data['tfa_enforce'] ?? 'none');
             $attr['backupmx']                   = (isset($_data['backupmx'])) ? intval($_data['backupmx']) : 0;
             $attr['relay_all_recipients']       = (isset($_data['relay_all_recipients'])) ? intval($_data['relay_all_recipients']) : 0;
             $attr['relay_unknown_only']          = (isset($_data['relay_unknown_only'])) ? intval($_data['relay_unknown_only']) : 0;
@@ -5259,6 +5417,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               `backupmx`,
               `gal`,
               `pgp_storage`,
+              `pgp_enforce`,
+              `tfa_enforce`,
               `active`
                 FROM `domain` WHERE `domain`= :domain");
           $stmt->execute(array(
@@ -5321,6 +5481,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $domaindata['gal_int'] = $row['gal'];
           $domaindata['pgp_storage'] = $row['pgp_storage'];
           $domaindata['pgp_storage_int'] = $row['pgp_storage'];
+          $domaindata['pgp_enforce'] = enforce_level($row['pgp_enforce']);
+          $domaindata['tfa_enforce'] = enforce_level($row['tfa_enforce']);
           $domaindata['rl'] = $rl;
           $domaindata['active'] = $row['active'];
           $domaindata['active_int'] = $row['active'];
@@ -5409,6 +5571,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             $stmt = $pdo->prepare("SELECT
               `domain`.`backupmx`,
               `domain`.`pgp_storage`,
+              `domain`.`pgp_enforce`,
+              `domain`.`tfa_enforce`,
               `mailbox`.`username`,
               `mailbox`.`name`,
               `mailbox`.`active`,
@@ -5432,6 +5596,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             $stmt = $pdo->prepare("SELECT
               `domain`.`backupmx`,
               `domain`.`pgp_storage`,
+              `domain`.`pgp_enforce`,
+              `domain`.`tfa_enforce`,
               `mailbox`.`username`,
               `mailbox`.`name`,
               `mailbox`.`active`,
@@ -5462,6 +5628,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
           $mailboxdata['domain'] = $row['domain'];
           // Whether the domain still allows PGP storage encryption at all.
           $mailboxdata['domain_pgp_storage'] = $row['pgp_storage'];
+          $mailboxdata['domain_pgp_enforce'] = enforce_level($row['pgp_enforce']);
+          $mailboxdata['domain_tfa_enforce'] = enforce_level($row['tfa_enforce']);
           $mailboxdata['name'] = $row['name'];
           $mailboxdata['local_part'] = $row['local_part'];
           $mailboxdata['quota'] = $row['quota'];

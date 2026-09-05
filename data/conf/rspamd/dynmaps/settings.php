@@ -178,7 +178,9 @@ settings {
 
 $stmt = $pdo->query("SELECT `mailbox`.`username` FROM `mailbox`
   LEFT JOIN `domain` ON `domain`.`domain` = `mailbox`.`domain`
-  WHERE JSON_VALUE(`mailbox`.`attributes`, '$.pgp_storage_encrypt') = '1'
+  WHERE (JSON_VALUE(`mailbox`.`attributes`, '$.pgp_storage_encrypt') = '1'
+      OR (IFNULL(`domain`.`pgp_enforce`, 'none') <> 'none'
+        AND COALESCE(JSON_VALUE(`mailbox`.`attributes`, '$.pgp_public_key'), '') <> ''))
     AND JSON_VALUE(`mailbox`.`attributes`, '$.pgp_skip_spam') = '1'
     AND IFNULL(`domain`.`pgp_storage`, '1') = '1'
     AND `mailbox`.`active` IN ('1', '2')");

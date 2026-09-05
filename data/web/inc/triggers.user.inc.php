@@ -136,7 +136,7 @@ if (isset($_POST["verify_tfa_login"])) {
         $user_details = mailbox("get", "mailbox_details", $_SESSION['mailcow_cc_username']);
         $is_dual = (!empty($_SESSION["dual-login"]["username"])) ? true : false;
         // If pending actions exist, redirect to / to show modal
-        if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+        if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
           header("Location: /");
           die();
         }
@@ -220,7 +220,7 @@ if (isset($_POST["login_user"]) && isset($_POST["pass_user"])) {
     $user_details = mailbox("get", "mailbox_details", $login_user);
     $is_dual = (!empty($_SESSION["dual-login"]["username"])) ? true : false;
     // If pending actions exist, redirect to / to show modal
-    if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+    if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
       header("Location: /");
       die();
     }

@@ -165,7 +165,11 @@
         "pgp_key_bad_base64": "O corpo da chave não é base64 válido.",
         "pgp_key_bad_checksum": "O checksum não corresponde — a chave parece truncada ou corrompida.",
         "pgp_key_not_public_key": "O bloco não começa com um pacote de chave pública OpenPGP.",
-        "pgp_key_required": "É necessário indicar a chave pública para activar a cifra no armazenamento."
+        "pgp_key_required": "É necessário indicar a chave pública para activar a cifra no armazenamento.",
+        "pgp_enforced_domain": "A cifra PGP no armazenamento é obrigatória neste domínio e não pode ser desligada.",
+        "pgp_enforce_requires_storage": "Não é possível exigir cifra PGP no armazenamento num domínio que não tem permissão para a usar.",
+        "pgp_enforce_locked": "Apenas o administrador pode alterar a exigência de cifra PGP deste domínio.",
+        "tfa_enforce_locked": "Apenas o administrador pode alterar a exigência de dois fatores deste domínio."
     },
     "edit": {
         "pgp_storage": "Permitir cifra PGP no armazenamento",
@@ -201,7 +205,13 @@
         "unchanged_if_empty": "Deixar em branco para não modificar",
         "username": "Administrador",
         "app_passwd_protocols": "Protocolos permitidos para palavra-passe de aplicação",
-        "allowed_protocols": "Protocolos permitidos para acesso direto do utilizador (não afeta os protocolos de palavra-passe da aplicação)"
+        "allowed_protocols": "Protocolos permitidos para acesso direto do utilizador (não afeta os protocolos de palavra-passe da aplicação)",
+        "pgp_enforce": "Exigir cifra PGP no armazenamento",
+        "pgp_enforce_info": "Todas as caixas deste domínio têm de armazenar o correio cifrado. A chave pública é pedida no início de sessão e o utilizador não pode desligar a cifra depois. Exige que a cifra PGP no armazenamento esteja permitida para o domínio.",
+        "pgp_enforce_locked": "O administrador exige cifra PGP no armazenamento neste domínio. Não é possível libertar isso aqui.",
+        "tfa_enforce": "Exigir autenticação em dois fatores",
+        "tfa_enforce_info": "Todas as caixas deste domínio têm de configurar a autenticação em dois fatores no próximo início de sessão e não a podem remover depois.",
+        "tfa_enforce_locked": "O administrador exige autenticação em dois fatores neste domínio. Não é possível libertar isso aqui."
     },
     "footer": {
         "loading": "Aguarde..."
@@ -374,7 +384,9 @@
         "pgp_js_valid": "Chave pública válida (%s bytes).",
         "pgp_js_file_too_large": "Ficheiro demasiado grande (máximo de 128 KB).",
         "pgp_js_file_unreadable": "Não foi possível ler esse ficheiro.",
-        "pgp_js_key_required": "É necessário indicar a chave pública para activar a cifra no armazenamento."
+        "pgp_js_key_required": "É necessário indicar a chave pública para activar a cifra no armazenamento.",
+        "pgp_domain_enforced": "A cifra PGP no armazenamento é obrigatória neste domínio. Não pode ser desligada e tem de existir sempre uma chave pública configurada.",
+        "pgp_setup_required": "A cifra PGP no armazenamento é obrigatória no seu domínio. Cole a sua chave pública OpenPGP para continuar — aqui fica apenas a chave pública, nunca a privada."
     },
     "acl": {
         "tls_policy": "Política de TLS",
@@ -388,7 +400,8 @@
     },
     "tfa": {
         "u2f_deprecated": "Parece que a sua chave foi registada usando o método U2F depreciado. Desactivaremos dois factores-autenticação para si e apagaremos a sua Chave.",
-        "none": "Desativar"
+        "none": "Desativar",
+        "force_tfa_domain": "A autenticação em dois fatores é obrigatória no domínio inteiro, por isso não pode ser desligada numa caixa isolada."
     },
     "datatables": {
         "search": "Procurar:",

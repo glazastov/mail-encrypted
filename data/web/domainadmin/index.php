@@ -4,7 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/triggers.domainadmin.inc.php';
 
 if (isset($_SESSION['mailcow_cc_role']) && $_SESSION['mailcow_cc_role'] == 'domainadmin') {
   // Only redirect to mailbox if NO pending actions
-  if (empty($_SESSION['pending_tfa_setup']) && empty($_SESSION['pending_pw_update'])) {
+  if (empty($_SESSION['pending_tfa_setup']) && empty($_SESSION['pending_pw_update']) && empty($_SESSION['pending_pgp_setup'])) {
     header('Location: /domainadmin/mailbox');
     exit();
   }

@@ -60,7 +60,7 @@ elseif (isset($_GET['login'])) {
           exit;
         }
         // Block SOGo access if pending actions (2FA setup, password update)
-        if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+        if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
           header("Location: /");
           exit;
         }
@@ -109,7 +109,8 @@ elseif ($is_internal_auth && isset($_SERVER['HTTP_X_ORIGINAL_URI']) && strcasecm
         is_array($_SESSION[$session_var_user_allowed]) &&
         in_array($email, $_SESSION[$session_var_user_allowed]) &&
         !$_SESSION['pending_pw_update'] &&
-        !$_SESSION['pending_tfa_setup']
+        !$_SESSION['pending_tfa_setup'] &&
+        empty($_SESSION['pending_pgp_setup'])
     ) {
       $username = $email;
       $password = file_get_contents("/etc/sogo-sso/sogo-sso.pass");

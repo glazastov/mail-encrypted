@@ -219,7 +219,10 @@ function user_login($user, $pass, $extra = null){
 
   $stmt = $pdo->prepare("SELECT
       mailbox.*,
-      domain.active AS d_active
+      domain.active AS d_active,
+      domain.pgp_storage,
+      domain.pgp_enforce,
+      domain.tfa_enforce
       FROM `mailbox`
       INNER JOIN domain on mailbox.domain = domain.domain
       WHERE `kind` NOT REGEXP 'location|thing|group'
@@ -312,8 +315,7 @@ function user_login($user, $pass, $extra = null){
               // Reactivate TFA if it was set to "deactivate TFA for next login"
               $stmt = $pdo->prepare("UPDATE `tfa` SET `active`='1' WHERE `username` = :user");
               $stmt->execute(array(':user' => $user));
-              // Check force_tfa: only force setup if NO TFA exists at all
-              if (intval($row['attributes']['force_tfa']) == 1 && !tfa_exists($user)) {
+              if (tfa_is_forced($row['attributes'], $row['tfa_enforce'] ?? 'none') && !tfa_exists($user)) {
                 $_SESSION['pending_tfa_setup'] = true;
               }
               $_SESSION['return'][] =  array(
@@ -370,8 +372,7 @@ function user_login($user, $pass, $extra = null){
             // Reactivate TFA if it was set to "deactivate TFA for next login"
             $stmt = $pdo->prepare("UPDATE `tfa` SET `active`='1' WHERE `username` = :user");
             $stmt->execute(array(':user' => $user));
-            // Check force_tfa: only force setup if NO TFA exists at all
-            if (intval($row['attributes']['force_tfa']) == 1 && !tfa_exists($user)) {
+            if (tfa_is_forced($row['attributes'], $row['tfa_enforce'] ?? 'none') && !tfa_exists($user)) {
               $_SESSION['pending_tfa_setup'] = true;
             }
             $_SESSION['return'][] =  array(
@@ -417,8 +418,7 @@ function user_login($user, $pass, $extra = null){
             // Reactivate TFA if it was set to "deactivate TFA for next login"
             $stmt = $pdo->prepare("UPDATE `tfa` SET `active`='1' WHERE `username` = :user");
             $stmt->execute(array(':user' => $user));
-            // Check force_tfa: only force setup if NO TFA exists at all
-            if (intval($row['attributes']['force_tfa']) == 1 && !tfa_exists($user)) {
+            if (tfa_is_forced($row['attributes'], $row['tfa_enforce'] ?? 'none') && !tfa_exists($user)) {
               $_SESSION['pending_tfa_setup'] = true;
             }
             $_SESSION['return'][] =  array(
