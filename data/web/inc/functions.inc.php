@@ -227,6 +227,27 @@ function password_complexity($_action, $_data = null) {
       }
       return false;
     break;
+    case 'describe':
+      $policy = password_complexity('get');
+      if ($policy === false) {
+        return false;
+      }
+      return array(
+        'min_length' => intval($policy['length']),
+        'letters' => intval($policy['chars']) === 1,
+        'numbers' => intval($policy['numbers']) === 1,
+        'special_chars' => intval($policy['special_chars']) === 1,
+        'lower_and_upper' => intval($policy['lowerupper']) === 1,
+        'patterns' => array(
+          'letters' => '[a-zA-Z]',
+          'numbers' => '[0-9]',
+          'special_chars' => '[^a-zA-Z0-9]',
+          'lowercase' => '[a-z]',
+          'uppercase' => '[A-Z]'
+        ),
+        'special_chars_pool' => password_special_chars()
+      );
+    break;
     case 'html':
       $policies = password_complexity('get');
       foreach ($policies as $name => $value) {
@@ -239,6 +260,10 @@ function password_complexity($_action, $_data = null) {
   }
 }
 
+function password_special_chars() {
+  return '!@#$%^&*()?=';
+}
+
 function password_generate(){
   $password_complexity = password_complexity('get');
   $min_length = max(16, intval($password_complexity['length']));
@@ -246,7 +271,7 @@ function password_generate(){
   $lowercase = range('a', 'z');
   $uppercase = range('A', 'Z');
   $digits = range(0, 9);
-  $special_chars = str_split('!@#$%^&*()?=');
+  $special_chars = str_split(password_special_chars());
 
   $password = [
     $lowercase[random_int(0, count($lowercase) - 1)],

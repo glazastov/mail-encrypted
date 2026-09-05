@@ -505,6 +505,15 @@ if (isset($_GET['query'])) {
 
           case "passwordpolicy":
             switch ($object) {
+              case "description":
+                $password_complexity_rules = password_complexity('describe');
+                if ($password_complexity_rules !== false) {
+                  process_get_return($password_complexity_rules);
+                }
+                else {
+                  echo '{}';
+                }
+              break;
               case "html":
                 $password_complexity_rules = password_complexity('html');
                 if ($password_complexity_rules !== false) {

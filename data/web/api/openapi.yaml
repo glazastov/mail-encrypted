@@ -5765,6 +5765,74 @@ paths:
         instance.
       operationId: Get version status
       summary: Get version status
+  /api/v1/get/passwordpolicy:
+    get:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                    length: "6"
+                    chars: "0"
+                    special_chars: "0"
+                    lowerupper: "0"
+                    numbers: "0"
+          description: OK
+          headers: {}
+      tags:
+        - Password policy
+      description: >-
+        Returns the password policy exactly as it is stored: the minimum length
+        and a flag per character class, both as strings. Prefer
+        `get/passwordpolicy/description` in new integrations - it returns the
+        same policy typed and names what each rule accepts.
+      operationId: Get password policy
+      summary: Get password policy
+  /api/v1/get/passwordpolicy/description:
+    get:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                    min_length: 6
+                    letters: false
+                    numbers: false
+                    special_chars: false
+                    lower_and_upper: false
+                    patterns:
+                      letters: "[a-zA-Z]"
+                      numbers: "[0-9]"
+                      special_chars: "[^a-zA-Z0-9]"
+                      lowercase: "[a-z]"
+                      uppercase: "[A-Z]"
+                    special_chars_pool: "!@#$%^&*()?="
+          description: OK
+          headers: {}
+      tags:
+        - Password policy
+      description: >-
+        Returns the password policy every password set through this instance
+        has to satisfy, so an integration can generate one that is accepted
+        instead of guessing. `min_length` is the minimum number of characters.
+        Each boolean says whether at least one character of that class is
+        required: `letters`, `numbers`, `special_chars`, and `lower_and_upper`
+        (at least one lowercase and one uppercase). `patterns` gives the regular
+        expression each class is matched with, so "special character" is not
+        left to interpretation - it is any character that is neither a letter
+        nor a digit. `special_chars_pool` is the set this instance's own
+        generator draws from; any character matching the special pattern is
+        equally accepted.
+      operationId: Get password policy description
+      summary: Get password policy description
   /api/v1/get/syncjobs/all/no_log:
     get:
       responses:
@@ -6441,3 +6509,5 @@ tags:
     description: Manage Cross-Origin Resource Sharing (CORS) settings
   - name: Identity Provider
     description: Manage external Identity Provider settings
+  - name: Password policy
+    description: Read the password policy passwords have to satisfy
