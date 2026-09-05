@@ -4,7 +4,7 @@ function init_db_schema()
   try {
     global $pdo;
 
-    $db_version = "02092026_1235";
+    $db_version = "05092026_1500";
 
     $stmt = $pdo->query("SHOW TABLES LIKE 'versions'");
     $num_results = count($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -266,6 +266,8 @@ function init_db_schema()
           // all. Defaults to allowed, so an upgrade never disables encryption
           // that is already running.
           "pgp_storage" => "TINYINT(1) NOT NULL DEFAULT '1'",
+          "pgp_enforce" => "VARCHAR(20) NOT NULL DEFAULT 'none'",
+          "tfa_enforce" => "VARCHAR(20) NOT NULL DEFAULT 'none'",
           "relay_all_recipients" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "relay_unknown_only" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)",

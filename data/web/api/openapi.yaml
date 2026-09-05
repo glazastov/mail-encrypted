@@ -570,6 +570,8 @@ paths:
                 mailboxes: "10"
                 maxquota: "10240"
                 pgp_storage: "1"
+                pgp_enforce: none
+                tfa_enforce: none
                 quota: "10240"
                 relay_all_recipients: "0"
                 rl_frame: s
@@ -613,6 +615,24 @@ paths:
                     unencrypted and users cannot turn their own switch on.
                     Defaults to enabled
                   type: boolean
+                pgp_enforce:
+                  description: >-
+                    who requires PGP storage encryption of every mailbox in
+                    this domain - none, domainadmin or admin. While it is
+                    required, mailbox owners are asked for a public key at
+                    login and cannot turn encryption off; a domain admin may
+                    set and lift domainadmin but never touch admin. Setting
+                    anything but none requires pgp_storage to be enabled.
+                    Defaults to none
+                  type: string
+                tfa_enforce:
+                  description: >-
+                    who requires two-factor authentication of every mailbox in
+                    this domain - none, domainadmin or admin. While it is
+                    required, mailbox owners must set it up at login and cannot
+                    remove it; a domain admin may set and lift domainadmin but
+                    never touch admin. Defaults to none
+                  type: string
                 quota:
                   description: maximum quota for this domain (for all mailboxes in sum)
                   type: number
@@ -3186,6 +3206,8 @@ paths:
                   mailboxes: "10"
                   maxquota: "10240"
                   pgp_storage: "1"
+                  pgp_enforce: none
+                  tfa_enforce: none
                   quota: "10240"
                   relay_all_recipients: "0"
                   relayhost: "2"
@@ -3226,6 +3248,24 @@ paths:
                         encryption; when disabled, delivery stores messages
                         unencrypted and users cannot turn their own switch on
                       type: boolean
+                    pgp_enforce:
+                      description: >-
+                        who requires PGP storage encryption of every mailbox in
+                        this domain - none, domainadmin or admin. While it is
+                        required, mailbox owners are asked for a public key at
+                        login and cannot turn encryption off; a domain admin
+                        may set and lift domainadmin but never touch admin.
+                        Setting anything but none requires pgp_storage to be
+                        enabled
+                      type: string
+                    tfa_enforce:
+                      description: >-
+                        who requires two-factor authentication of every mailbox
+                        in this domain - none, domainadmin or admin. While it
+                        is required, mailbox owners must set it up at login and
+                        cannot remove it; a domain admin may set and lift
+                        domainadmin but never touch admin
+                      type: string
                     quota:
                       description: maximum quota for this domain (for all mailboxes in sum)
                       type: number
@@ -3683,6 +3723,10 @@ paths:
         key - either sent in the same request or already stored - and fails
         with `pgp_domain_disabled` when the mailbox's domain has PGP storage
         disabled (see the `pgp_storage` attribute of `add`/`edit domain`).
+        When the domain requires encryption (`pgp_enforce`), turning it off
+        fails with `pgp_enforced_domain` and removing the public key fails with
+        `pgp_key_required`, for every role including the domain admin: lift the
+        requirement on the domain first.
       operationId: Update mailbox PGP storage encryption
       requestBody:
         content:
@@ -5721,6 +5765,74 @@ paths:
         instance.
       operationId: Get version status
       summary: Get version status
+  /api/v1/get/passwordpolicy:
+    get:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                    length: "6"
+                    chars: "0"
+                    special_chars: "0"
+                    lowerupper: "0"
+                    numbers: "0"
+          description: OK
+          headers: {}
+      tags:
+        - Password policy
+      description: >-
+        Returns the password policy exactly as it is stored: the minimum length
+        and a flag per character class, both as strings. Prefer
+        `get/passwordpolicy/description` in new integrations - it returns the
+        same policy typed and names what each rule accepts.
+      operationId: Get password policy
+      summary: Get password policy
+  /api/v1/get/passwordpolicy/description:
+    get:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                    min_length: 6
+                    letters: false
+                    numbers: false
+                    special_chars: false
+                    lower_and_upper: false
+                    patterns:
+                      letters: "[a-zA-Z]"
+                      numbers: "[0-9]"
+                      special_chars: "[^a-zA-Z0-9]"
+                      lowercase: "[a-z]"
+                      uppercase: "[A-Z]"
+                    special_chars_pool: "!@#$%^&*()?="
+          description: OK
+          headers: {}
+      tags:
+        - Password policy
+      description: >-
+        Returns the password policy every password set through this instance
+        has to satisfy, so an integration can generate one that is accepted
+        instead of guessing. `min_length` is the minimum number of characters.
+        Each boolean says whether at least one character of that class is
+        required: `letters`, `numbers`, `special_chars`, and `lower_and_upper`
+        (at least one lowercase and one uppercase). `patterns` gives the regular
+        expression each class is matched with, so "special character" is not
+        left to interpretation - it is any character that is neither a letter
+        nor a digit. `special_chars_pool` is the set this instance's own
+        generator draws from; any character matching the special pattern is
+        equally accepted.
+      operationId: Get password policy description
+      summary: Get password policy description
   /api/v1/get/syncjobs/all/no_log:
     get:
       responses:
@@ -6397,3 +6509,5 @@ tags:
     description: Manage Cross-Origin Resource Sharing (CORS) settings
   - name: Identity Provider
     description: Manage external Identity Provider settings
+  - name: Password policy
+    description: Read the password policy passwords have to satisfy

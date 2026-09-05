@@ -104,31 +104,50 @@ def main():
         }),
     }
 
-    (key, hide), log = lookup(module, dict(enabled, domain_pgp_storage="1"))
+    (key, hide), log = lookup(module, dict(enabled, domain_pgp_storage="1", domain_pgp_enforce="none"))
     check("domain allows: key returned", key, PUBLIC_KEY)
     check("domain allows: subject option honoured", hide, True)
 
-    (key, hide), _ = lookup(module, dict(enabled, domain_pgp_storage="0"))
+    (key, hide), _ = lookup(module, dict(enabled, domain_pgp_storage="0", domain_pgp_enforce="none"))
     check("domain forbids: no key", key, None)
     check("domain forbids: no subject hiding", hide, False)
 
     # A mailbox whose domain row went missing keeps working as it did before
     # the setting existed: the query's IFNULL turns that case into a '1', which
     # is what the lookup then sees.
-    (key, _), _ = lookup(module, dict(enabled, domain_pgp_storage="1"))
+    (key, _), _ = lookup(module, dict(enabled, domain_pgp_storage="1", domain_pgp_enforce="none"))
     check("missing domain row reads as allowed", key, PUBLIC_KEY)
 
     # The mailbox's own switch still has to be on.
     off = {"attributes": '{"pgp_storage_encrypt": "0", "pgp_public_key": "x"}',
-           "domain_pgp_storage": "1"}
+           "domain_pgp_storage": "1", "domain_pgp_enforce": "none"}
     (key, _), _ = lookup(module, off)
     check("mailbox switch off: no key", key, None)
+
+    # Unless the domain requires encryption, in which case the mailbox's switch
+    # is not its to turn off and the key is used regardless of what it says.
+    (key, _), _ = lookup(module, dict(off, domain_pgp_enforce="admin"))
+    check("domain enforces: mailbox switch off is overridden", key, "x")
+    (key, _), _ = lookup(module, dict(off, domain_pgp_enforce="domainadmin"))
+    check("domain admin enforces: mailbox switch off is overridden", key, "x")
+
+    # Withdrawing PGP from the domain still outranks a requirement left on it.
+    (key, _), _ = lookup(module, dict(off, domain_pgp_storage="0", domain_pgp_enforce="admin"))
+    check("domain forbids: a stale requirement changes nothing", key, None)
+
+    # An enforced mailbox that has not set a key yet has nothing to encrypt to.
+    nokey = {"attributes": '{"pgp_storage_encrypt": "0", "pgp_public_key": ""}',
+             "domain_pgp_storage": "1", "domain_pgp_enforce": "admin"}
+    (key, _), _ = lookup(module, nokey)
+    check("domain enforces without a key: no key", key, None)
 
     sql, params = log[0]
     check("query joins the domain table",
           "LEFT JOIN domain ON domain.domain = mailbox.domain" in sql, True)
     check("query defaults a missing domain row to allowed",
           "IFNULL(domain.pgp_storage, '1') AS domain_pgp_storage" in sql, True)
+    check("query defaults a missing domain row to unenforced",
+          "IFNULL(domain.pgp_enforce, 'none') AS domain_pgp_enforce" in sql, True)
     check("query is still parameterised", params, ("teste@example.org",))
 
     if failures:

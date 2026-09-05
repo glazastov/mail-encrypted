@@ -66,6 +66,7 @@ $globalVariables = [
   'pending_mailcow_cc_username' => @$_SESSION['pending_mailcow_cc_username'],
   'pending_tfa_setup' => !empty($_SESSION['pending_tfa_setup']),
   'pending_pw_update_modal' => !empty($_SESSION['pending_pw_update']),
+  'pending_pgp_setup' => !empty($_SESSION['pending_pgp_setup']),
   'lang_footer' => json_encode($lang['footer']),
   'lang_acl' => json_encode($lang['acl']),
   'lang_tfa' => json_encode($lang['tfa']),

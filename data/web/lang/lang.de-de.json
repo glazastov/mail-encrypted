@@ -571,7 +571,11 @@
         "pgp_key_bad_base64": "Der Schlüsselinhalt ist kein gültiges Base64.",
         "pgp_key_bad_checksum": "Prüfsumme stimmt nicht — der Schlüssel wirkt abgeschnitten oder beschädigt.",
         "pgp_key_not_public_key": "Der Block beginnt nicht mit einem OpenPGP-Paket für öffentliche Schlüssel.",
-        "pgp_key_required": "Für die Speicherverschlüsselung wird ein öffentlicher Schlüssel benötigt."
+        "pgp_key_required": "Für die Speicherverschlüsselung wird ein öffentlicher Schlüssel benötigt.",
+        "pgp_enforced_domain": "Für diese Domain ist PGP-Speicherverschlüsselung vorgeschrieben und kann nicht abgeschaltet werden.",
+        "pgp_enforce_requires_storage": "PGP-Speicherverschlüsselung kann für eine Domain, die sie nicht verwenden darf, nicht vorgeschrieben werden.",
+        "pgp_enforce_locked": "Nur der Administrator kann die PGP-Pflicht dieser Domain ändern.",
+        "tfa_enforce_locked": "Nur der Administrator kann die Zwei-Faktor-Pflicht dieser Domain ändern."
     },
     "datatables": {
         "collapse_all": "Alle Einklappen",
@@ -801,7 +805,13 @@
         "unchanged_if_empty": "Unverändert, wenn leer",
         "username": "Benutzername",
         "validate_save": "Validieren und speichern",
-        "pushover_sound": "Ton"
+        "pushover_sound": "Ton",
+        "pgp_enforce": "PGP-Verschlüsselung im Speicher verpflichtend",
+        "pgp_enforce_info": "Alle Mailboxen dieser Domain müssen ihre Nachrichten verschlüsselt speichern. Der öffentliche Schlüssel wird bei der Anmeldung abgefragt und die Verschlüsselung kann danach nicht mehr abgeschaltet werden. Setzt voraus, dass die Domain PGP-Speicherverschlüsselung verwenden darf.",
+        "pgp_enforce_locked": "Der Administrator verlangt PGP-Speicherverschlüsselung für diese Domain. Das lässt sich hier nicht aufheben.",
+        "tfa_enforce": "Zwei-Faktor-Authentifizierung verpflichtend",
+        "tfa_enforce_info": "Alle Mailboxen dieser Domain müssen bei der nächsten Anmeldung eine Zwei-Faktor-Authentifizierung einrichten und können sie danach nicht mehr entfernen.",
+        "tfa_enforce_locked": "Der Administrator verlangt Zwei-Faktor-Authentifizierung für diese Domain. Das lässt sich hier nicht aufheben."
     },
     "fido2": {
         "confirm": "Bestätigen",
@@ -1257,7 +1267,8 @@
         "force_tfa_info": "Der Benutzer muss Zwei-Faktor-Authentifizierung einrichten, bevor er auf den Bereich zugreifen kann.",
         "setup_title": "Zwei-Faktor-Authentifizierung erforderlich",
         "setup_required": "Ihr Konto erfordert Zwei-Faktor-Authentifizierung. Bitte richten Sie eine 2FA-Methode ein, um fortzufahren.",
-        "cancel_setup": "Abbrechen und abmelden"
+        "cancel_setup": "Abbrechen und abmelden",
+        "force_tfa_domain": "Zwei-Faktor-Authentifizierung ist für die gesamte Domain vorgeschrieben und kann für eine einzelne Mailbox nicht abgeschaltet werden."
     },
     "user": {
         "pgp_domain_disabled": "Der Administrator hat die PGP-Verschlüsselung im Speicher für diese Domain deaktiviert. Ihre Einstellungen bleiben erhalten und gelten wieder, sobald sie erneut erlaubt wird.",
@@ -1456,7 +1467,9 @@
         "pgp_js_valid": "Gültiger öffentlicher Schlüssel (%s Bytes).",
         "pgp_js_file_too_large": "Datei zu groß (höchstens 128 KB).",
         "pgp_js_file_unreadable": "Diese Datei konnte nicht gelesen werden.",
-        "pgp_js_key_required": "Für die Speicherverschlüsselung wird ein öffentlicher Schlüssel benötigt."
+        "pgp_js_key_required": "Für die Speicherverschlüsselung wird ein öffentlicher Schlüssel benötigt.",
+        "pgp_domain_enforced": "Für diese Domain ist PGP-Speicherverschlüsselung vorgeschrieben. Sie kann nicht abgeschaltet werden und ein öffentlicher Schlüssel muss hinterlegt bleiben.",
+        "pgp_setup_required": "Für Ihre Domain ist PGP-Speicherverschlüsselung vorgeschrieben. Fügen Sie Ihren öffentlichen OpenPGP-Schlüssel ein, um fortzufahren – gespeichert wird nur der öffentliche, niemals der private Schlüssel."
     },
     "warning": {
         "cannot_delete_self": "Kann derzeit eingeloggten Benutzer nicht entfernen",

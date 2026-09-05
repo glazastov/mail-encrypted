@@ -227,6 +227,27 @@ function password_complexity($_action, $_data = null) {
       }
       return false;
     break;
+    case 'describe':
+      $policy = password_complexity('get');
+      if ($policy === false) {
+        return false;
+      }
+      return array(
+        'min_length' => intval($policy['length']),
+        'letters' => intval($policy['chars']) === 1,
+        'numbers' => intval($policy['numbers']) === 1,
+        'special_chars' => intval($policy['special_chars']) === 1,
+        'lower_and_upper' => intval($policy['lowerupper']) === 1,
+        'patterns' => array(
+          'letters' => '[a-zA-Z]',
+          'numbers' => '[0-9]',
+          'special_chars' => '[^a-zA-Z0-9]',
+          'lowercase' => '[a-z]',
+          'uppercase' => '[A-Z]'
+        ),
+        'special_chars_pool' => password_special_chars()
+      );
+    break;
     case 'html':
       $policies = password_complexity('get');
       foreach ($policies as $name => $value) {
@@ -239,6 +260,10 @@ function password_complexity($_action, $_data = null) {
   }
 }
 
+function password_special_chars() {
+  return '!@#$%^&*()?=';
+}
+
 function password_generate(){
   $password_complexity = password_complexity('get');
   $min_length = max(16, intval($password_complexity['length']));
@@ -246,7 +271,7 @@ function password_generate(){
   $lowercase = range('a', 'z');
   $uppercase = range('A', 'Z');
   $digits = range(0, 9);
-  $special_chars = str_split('!@#$%^&*()?=');
+  $special_chars = str_split(password_special_chars());
 
   $password = [
     $lowercase[random_int(0, count($lowercase) - 1)],
@@ -1396,18 +1421,7 @@ function set_tfa($_data) {
         );
     break;
     case "none":
-      // Block TFA removal if force_tfa policy is active
-      $is_forced_tfa = false;
-      if ($_SESSION['mailcow_cc_role'] === 'user') {
-        $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `mailbox` WHERE `username` = ?");
-        $stmt_check->execute(array($username));
-        $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-      } else {
-        $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `admin` WHERE `username` = ?");
-        $stmt_check->execute(array($username));
-        $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-      }
-      if ($is_forced_tfa) {
+      if (tfa_removal_blocked($username, $_SESSION['mailcow_cc_role'])) {
         $_SESSION['return'][] =  array(
           'type' => 'danger',
           'log' => array(__FUNCTION__, $_data_log),
@@ -1667,18 +1681,7 @@ function unset_tfa_key($_data) {
       return false;
     }
 
-    // Block key removal if force_tfa policy is active
-    $is_forced_tfa = false;
-    if ($_SESSION['mailcow_cc_role'] === 'user') {
-      $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `mailbox` WHERE `username` = ?");
-      $stmt_check->execute(array($username));
-      $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-    } else {
-      $stmt_check = $pdo->prepare("SELECT JSON_EXTRACT(`attributes`, '$.force_tfa') FROM `admin` WHERE `username` = ?");
-      $stmt_check->execute(array($username));
-      $is_forced_tfa = ($stmt_check->fetchColumn() == '1');
-    }
-    if ($is_forced_tfa) {
+    if (tfa_removal_blocked($username, $_SESSION['mailcow_cc_role'])) {
       $_SESSION['return'][] =  array(
         'type' => 'danger',
         'log' => array(__FUNCTION__, $_data_log),
@@ -3786,6 +3789,12 @@ function set_user_loggedin_session($user) {
   // The address the login page was asked to remember has served its purpose;
   // leaving it behind would greet the next logout with a stale name.
   unset($_SESSION['login_identify']);
+  if (pgp_setup_pending($user)) {
+    $_SESSION['pending_pgp_setup'] = true;
+  }
+  else {
+    unset($_SESSION['pending_pgp_setup']);
+  }
 }
 function protect_route($allowed_roles = ['admin', 'domainadmin', 'user'], $redirects = []) {
   // Check if user is authenticated
@@ -3799,7 +3808,7 @@ function protect_route($allowed_roles = ['admin', 'domainadmin', 'user'], $redir
   }
 
   // Check for pending actions (2FA setup, password update)
-  if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update'])) {
+  if (!empty($_SESSION['pending_tfa_setup']) || !empty($_SESSION['pending_pw_update']) || !empty($_SESSION['pending_pgp_setup'])) {
     $pending_redirect = '/';
     if ($_SESSION['mailcow_cc_role'] === 'admin') {
       $pending_redirect = '/admin';

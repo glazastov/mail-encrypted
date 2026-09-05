@@ -142,6 +142,26 @@
                       </div>
                     </div>
                   </div>
+                  {% set pgp_enforce_locked = mailcow_cc_role != 'admin' and result.pgp_enforce == 'admin' %}
+                  {% set tfa_enforce_locked = mailcow_cc_role != 'admin' and result.tfa_enforce == 'admin' %}
+                  <div class="row">
+                    <div class="offset-sm-2 col-sm-10">
+                      <div class="form-check">
+                        {% if not pgp_enforce_locked %}<input type="hidden" value="none" name="pgp_enforce">{% endif %}
+                        <label><input type="checkbox" class="form-check-input" value="{{ result.pgp_enforce != 'none' ? result.pgp_enforce : (mailcow_cc_role == 'admin' ? 'admin' : 'domainadmin') }}" name="pgp_enforce"{% if result.pgp_enforce != 'none' %} checked{% endif %}{% if pgp_enforce_locked %} disabled{% endif %}> {{ lang.edit.pgp_enforce }}</label>
+                        <small class="text-muted">{% if pgp_enforce_locked %}{{ lang.edit.pgp_enforce_locked }}{% else %}{{ lang.edit.pgp_enforce_info|raw }}{% endif %}</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="offset-sm-2 col-sm-10">
+                      <div class="form-check">
+                        {% if not tfa_enforce_locked %}<input type="hidden" value="none" name="tfa_enforce">{% endif %}
+                        <label><input type="checkbox" class="form-check-input" value="{{ result.tfa_enforce != 'none' ? result.tfa_enforce : (mailcow_cc_role == 'admin' ? 'admin' : 'domainadmin') }}" name="tfa_enforce"{% if result.tfa_enforce != 'none' %} checked{% endif %}{% if tfa_enforce_locked %} disabled{% endif %}> {{ lang.edit.tfa_enforce }}</label>
+                        <small class="text-muted">{% if tfa_enforce_locked %}{{ lang.edit.tfa_enforce_locked }}{% else %}{{ lang.edit.tfa_enforce_info|raw }}{% endif %}</small>
+                      </div>
+                    </div>
+                  </div>
                   <hr>
                   <div class="row mb-2">
                     <div class="offset-sm-2 col-sm-10">

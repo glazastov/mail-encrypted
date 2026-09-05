@@ -571,7 +571,11 @@
         "pgp_key_bad_base64": "O corpo da chave não é base64 válido.",
         "pgp_key_bad_checksum": "O checksum não confere — a chave parece truncada ou corrompida.",
         "pgp_key_not_public_key": "O bloco não começa com um pacote de chave pública OpenPGP.",
-        "pgp_key_required": "É preciso informar a chave pública para ativar a criptografia no armazenamento."
+        "pgp_key_required": "É preciso informar a chave pública para ativar a criptografia no armazenamento.",
+        "pgp_enforced_domain": "A criptografia PGP no armazenamento é obrigatória neste domínio e não pode ser desligada.",
+        "pgp_enforce_requires_storage": "Não é possível exigir criptografia PGP no armazenamento em um domínio que não tem permissão para usá-la.",
+        "pgp_enforce_locked": "Somente o administrador pode alterar a exigência de criptografia PGP deste domínio.",
+        "tfa_enforce_locked": "Somente o administrador pode alterar a exigência de dois fatores deste domínio."
     },
     "datatables": {
         "collapse_all": "Recolher tudo",
@@ -801,7 +805,13 @@
         "mta_sts_mx_notice": "Múltiplos servidores MX podem ser especificados (separados por vírgulas).",
         "sender_allowed": "Permitir enviar como este alias",
         "sender_allowed_info": "Se desativado, este alias poderá apenas receber e-mails. Use a ACL de remetente para substituir essa configuração e conceder a caixas de correio específicas permissão para enviar.",
-        "mta_sts_active_info": "Se esta opção estiver desmarcada, a política MTA-STS não será publicada e nenhum certificado será solicitado via ACME para o subdomínio mta-sts."
+        "mta_sts_active_info": "Se esta opção estiver desmarcada, a política MTA-STS não será publicada e nenhum certificado será solicitado via ACME para o subdomínio mta-sts.",
+        "pgp_enforce": "Exigir criptografia PGP no armazenamento",
+        "pgp_enforce_info": "Todas as caixas deste domínio precisam armazenar o correio criptografado. A chave pública é pedida no login e o usuário não pode desligar a criptografia depois. Exige que a criptografia PGP no armazenamento esteja permitida para o domínio.",
+        "pgp_enforce_locked": "O administrador exige criptografia PGP no armazenamento neste domínio. Não é possível liberar isso aqui.",
+        "tfa_enforce": "Exigir autenticação em dois fatores",
+        "tfa_enforce_info": "Todas as caixas deste domínio precisam configurar a autenticação em dois fatores no próximo login e não podem removê-la depois.",
+        "tfa_enforce_locked": "O administrador exige autenticação em dois fatores neste domínio. Não é possível liberar isso aqui."
     },
     "fido2": {
         "confirm": "Confirme",
@@ -1265,7 +1275,8 @@
         "force_tfa_info": "O usuário será obrigado a configurar a autenticação de dois fatores antes de acessar o painel.",
         "setup_title": "Autenticação de Dois Fatores Obrigatória",
         "setup_required": "Sua conta exige autenticação de dois fatores. Configure um método de 2FA para continuar.",
-        "cancel_setup": "Cancelar e sair"
+        "cancel_setup": "Cancelar e sair",
+        "force_tfa_domain": "A autenticação em dois fatores é obrigatória no domínio inteiro, então não pode ser desligada em uma caixa isolada."
     },
     "user": {
         "pgp_domain_disabled": "O administrador desativou a criptografia PGP no armazenamento para este domínio. As suas configurações ficam guardadas e voltam a valer se ela for liberada de novo.",
@@ -1464,7 +1475,9 @@
         "pgp_js_valid": "Chave pública válida (%s bytes).",
         "pgp_js_file_too_large": "Arquivo grande demais (máximo de 128 KB).",
         "pgp_js_file_unreadable": "Não foi possível ler esse arquivo.",
-        "pgp_js_key_required": "É preciso informar a chave pública para ativar a criptografia no armazenamento."
+        "pgp_js_key_required": "É preciso informar a chave pública para ativar a criptografia no armazenamento.",
+        "pgp_domain_enforced": "A criptografia PGP no armazenamento é obrigatória neste domínio. Ela não pode ser desligada e uma chave pública precisa permanecer configurada.",
+        "pgp_setup_required": "A criptografia PGP no armazenamento é obrigatória no seu domínio. Cole a sua chave pública OpenPGP para continuar — aqui fica apenas a chave pública, nunca a privada."
     },
     "warning": {
         "cannot_delete_self": "Não é possível excluir o usuário conectado",

@@ -9,6 +9,8 @@
     <input type="hidden" value="0" name="backupmx">
     <input type="hidden" value="0" name="gal">
     <input type="hidden" value="0" name="pgp_storage">
+    <input type="hidden" value="none" name="pgp_enforce">
+    <input type="hidden" value="none" name="tfa_enforce">
     <input type="hidden" value="0" name="relay_all_recipients">
     <input type="hidden" value="0" name="relay_unknown_only">
 
@@ -72,6 +74,14 @@
         <div class="form-check">
           <label><input type="checkbox" class="form-check-input" value="1" name="pgp_storage"{% if template.attributes.pgp_storage is not defined or template.attributes.pgp_storage == '1' %} checked{% endif %}> {{ lang.edit.pgp_storage }}</label>
           <small class="text-muted">{{ lang.edit.pgp_storage_info|raw }}</small>
+        </div>
+        <div class="form-check">
+          <label><input type="checkbox" class="form-check-input" value="admin" name="pgp_enforce"{% if template.attributes.pgp_enforce is defined and template.attributes.pgp_enforce != 'none' %} checked{% endif %}> {{ lang.edit.pgp_enforce }}</label>
+          <small class="text-muted">{{ lang.edit.pgp_enforce_info|raw }}</small>
+        </div>
+        <div class="form-check">
+          <label><input type="checkbox" class="form-check-input" value="admin" name="tfa_enforce"{% if template.attributes.tfa_enforce is defined and template.attributes.tfa_enforce != 'none' %} checked{% endif %}> {{ lang.edit.tfa_enforce }}</label>
+          <small class="text-muted">{{ lang.edit.tfa_enforce_info|raw }}</small>
         </div>
       </div>
     </div>

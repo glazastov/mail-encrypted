@@ -321,8 +321,10 @@
                   <div class="row">
                     <div class="offset-sm-2 col-sm-10">
                       <div class="form-check">
-                        <label><input type="checkbox" class="form-check-input" value="1" name="force_tfa"{% if result.attributes.force_tfa == '1' %} checked{% endif %}> {{ lang.tfa.force_tfa }}</label>
-                        <small class="text-muted">{{ lang.tfa.force_tfa_info }}</small>
+                        {% set tfa_domain_enforced = result.domain_tfa_enforce is defined and result.domain_tfa_enforce != 'none' %}
+                        {% if tfa_domain_enforced %}<input type="hidden" name="force_tfa" value="{% if result.attributes.force_tfa == '1' %}1{% else %}0{% endif %}">{% endif %}
+                        <label><input type="checkbox" class="form-check-input" value="1" name="force_tfa"{% if tfa_domain_enforced or result.attributes.force_tfa == '1' %} checked{% endif %}{% if tfa_domain_enforced %} disabled{% endif %}> {{ lang.tfa.force_tfa }}</label>
+                        <small class="text-muted">{% if tfa_domain_enforced %}{{ lang.tfa.force_tfa_domain }}{% else %}{{ lang.tfa.force_tfa_info }}{% endif %}</small>
                       </div>
                     </div>
                   </div>

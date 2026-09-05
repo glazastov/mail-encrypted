@@ -132,7 +132,9 @@ connect = "host=/var/run/mysqld/mysqld.sock dbname=${DBNAME} user=${DBUSER} pass
 # delivery without touching what each mailbox had configured. The join is a
 # LEFT one: a mailbox whose domain row is missing keeps working exactly as it
 # did before this setting existed.
-user_query = SELECT CONCAT(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '$.mailbox_format')), mailbox.mailbox_path_prefix, '%d/%n/${MAILDIR_SUB}:VOLATILEDIR=/var/volatile/%u:INDEX=/var/vmail_index/%u') AS mail, '%s' AS protocol, 5000 AS uid, 5000 AS gid, concat('*:bytes=', mailbox.quota) AS quota_rule, IF(IFNULL(domain.pgp_storage, '1') = '1', JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_storage_encrypt')), '0') AS pgp_storage_encrypt, JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_failure_mode')) AS pgp_failure_mode FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain WHERE mailbox.username = '%u' AND (mailbox.active = '1' OR mailbox.active = '2')
+# It is reported as on whenever the domain requires encryption and the mailbox
+# has a key, because the mailbox's own switch is not its to turn off then.
+user_query = SELECT CONCAT(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '$.mailbox_format')), mailbox.mailbox_path_prefix, '%d/%n/${MAILDIR_SUB}:VOLATILEDIR=/var/volatile/%u:INDEX=/var/vmail_index/%u') AS mail, '%s' AS protocol, 5000 AS uid, 5000 AS gid, concat('*:bytes=', mailbox.quota) AS quota_rule, IF(IFNULL(domain.pgp_storage, '1') = '1', IF(IFNULL(domain.pgp_enforce, 'none') <> 'none' AND COALESCE(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_public_key')), '') <> '', '1', JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_storage_encrypt'))), '0') AS pgp_storage_encrypt, JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_failure_mode')) AS pgp_failure_mode FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain WHERE mailbox.username = '%u' AND (mailbox.active = '1' OR mailbox.active = '2')
 iterate_query = SELECT username FROM mailbox WHERE active = '1' OR active = '2';
 EOF
 

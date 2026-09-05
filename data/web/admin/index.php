@@ -4,7 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/triggers.admin.inc.php';
 
 if (isset($_SESSION['mailcow_cc_role']) && $_SESSION['mailcow_cc_role'] == 'admin') {
   // Only redirect to dashboard if NO pending actions
-  if (empty($_SESSION['pending_tfa_setup']) && empty($_SESSION['pending_pw_update'])) {
+  if (empty($_SESSION['pending_tfa_setup']) && empty($_SESSION['pending_pw_update']) && empty($_SESSION['pending_pgp_setup'])) {
     header('Location: /admin/dashboard');
     exit();
   }

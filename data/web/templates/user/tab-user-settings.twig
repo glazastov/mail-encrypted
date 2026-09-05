@@ -42,11 +42,12 @@
          showing them - read-only, under a banner saying they are not in
          effect - rather than hiding or blanking them. #}
       {% set pgp_domain_allowed = mailboxdata.domain_pgp_storage is not defined or mailboxdata.domain_pgp_storage == '1' %}
+      {% set pgp_domain_enforced = pgp_domain_allowed and mailboxdata.domain_pgp_enforce is defined and mailboxdata.domain_pgp_enforce != 'none' %}
       <form data-id="pgp_storage">
         {# The switches below are read as "leave it as it is" when absent, and
            an unchecked box is not posted at all - so each one gets a zero to
            fall back on. #}
-        <input type="hidden" value="0" name="pgp_storage_encrypt">
+        <input type="hidden" value="{% if pgp_domain_enforced %}1{% else %}0{% endif %}" name="pgp_storage_encrypt">
         <input type="hidden" value="0" name="pgp_encrypt_subject">
         <input type="hidden" value="0" name="pgp_skip_spam">
         <div class="row">
@@ -55,8 +56,11 @@
             {% if not pgp_domain_allowed %}
             <div class="alert alert-warning py-2">{{ lang.user.pgp_domain_disabled }}</div>
             {% endif %}
+            {% if pgp_domain_enforced %}
+            <div class="alert alert-warning py-2">{{ lang.user.pgp_domain_enforced }}</div>
+            {% endif %}
             <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}{% if not pgp_domain_allowed %} disabled{% endif %}>
+              <input class="form-check-input" type="checkbox" role="switch" id="pgp_storage_encrypt" name="pgp_storage_encrypt" value="1"{% if pgp_domain_enforced or mailboxdata.attributes.pgp_storage_encrypt == '1' or mailboxdata.attributes.pgp_storage_encrypt == 1 %} checked{% endif %}{% if not pgp_domain_allowed or pgp_domain_enforced %} disabled{% endif %}>
               <label class="form-check-label" for="pgp_storage_encrypt">{{ lang.user.pgp_storage_enable }}</label>
             </div>
             <textarea class="form-control" id="pgp_public_key" rows="8" name="pgp_public_key" spellcheck="false"{% if not pgp_domain_allowed %} readonly{% endif %} placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ mailboxdata.attributes.pgp_public_key|default('') }}</textarea>
