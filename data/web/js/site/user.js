@@ -489,6 +489,25 @@ jQuery(function($){
           defaultContent: ''
         },
         {
+          title: lang.app_passwd_valid_until,
+          data: 'validity',
+          defaultContent: '',
+          render: function (data, type, row) {
+            if (type === 'sort') {
+              return data ? data : Number.MAX_SAFE_INTEGER;
+            }
+            if (!data) {
+              return lang.forever;
+            }
+            var date = new Date(data * 1000);
+            var until = escapeHtml(date.toLocaleDateString() + ' ' + date.toLocaleTimeString());
+            if (row.expired) {
+              return '<span class="text-danger">' + until + ' (' + escapeHtml(lang.app_passwd_expired) + ')</span>';
+            }
+            return until;
+          }
+        },
+        {
           title: lang.active,
           data: 'active',
           defaultContent: '',

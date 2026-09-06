@@ -464,10 +464,12 @@ function apppass_login($user, $pass, $extra = null){
       AND `mailbox`.`active` = '1'
       AND `domain`.`active` = '1'
       AND `app_passwd`.`active` = '1'
+      AND (`app_passwd`.`validity` = 0 OR `app_passwd`.`validity` > :validity_now)
       AND `app_passwd`.`mailbox` = :user"
   );
   // fetch password data
   $stmt->execute(array(
+    ':validity_now' => time(),
     ':user' => $user,
   ));
   $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

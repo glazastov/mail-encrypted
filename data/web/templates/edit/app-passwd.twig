@@ -45,6 +45,33 @@
     </div>
   </div>
   <div class="row mb-2">
+    <label class="control-label col-sm-2" for="validity">{{ lang.edit.app_passwd_validity }}</label>
+    <div class="col-sm-10">
+      <select class="form-select" id="validity" name="validity">
+        <option value="" selected>{{ lang.edit.app_passwd_validity_keep }}</option>
+        <option value="24">1 {{ lang.user.day }}</option>
+        <option value="168">1 {{ lang.user.week }}</option>
+        <option value="720">1 {{ lang.user.month }}</option>
+        <option value="2160">3 {{ lang.user.months }}</option>
+        <option value="4320">6 {{ lang.user.months }}</option>
+        <option value="8760">1 {{ lang.user.year }}</option>
+        <option value="0">{{ lang.user.forever }}</option>
+      </select>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="offset-sm-2 col-sm-10">
+      {% if result.validity == 0 %}
+        <p class="text-muted mb-0">{{ lang.edit.app_passwd_validity_forever }}</p>
+      {% else %}
+        <p class="text-muted mb-0">{{ lang.edit.app_passwd_valid_until }}: {{ result.validity|date('Y-m-d H:i') }}</p>
+        {% if result.expired %}
+          <p class="text-danger mb-0">{{ lang.edit.app_passwd_expired }}</p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="row mb-2">
     <div class="offset-sm-2 col-sm-10">
       <button class="btn btn-xs-lg d-block d-sm-inline btn-success" data-action="edit_selected" data-id="editapp" data-item="{{ result.id }}" data-api-url='edit/app-passwd' data-api-attr='{}' href="#">{{ lang.edit.save }}</button>
     </div>
