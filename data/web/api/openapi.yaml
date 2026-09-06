@@ -225,6 +225,7 @@ paths:
                           app_name: wordpress
                           app_passwd: keyleudecticidechothistishownsan31
                           app_passwd2: keyleudecticidechothistishownsan31
+                          validity: "2160"
                           protocols:
                             - imap_access
                             - dav_access
@@ -268,6 +269,7 @@ paths:
                 app_name: wordpress
                 app_passwd: keyleudecticidechothistishownsan31
                 app_passwd2: keyleudecticidechothistishownsan31
+                validity: "2160"
                 protocols:
                   - imap_access
                   - dav_access
@@ -291,6 +293,13 @@ paths:
                 app_passwd2:
                   description: your app password
                   type: string
+                validity:
+                  description: >-
+                    how long the app password stays valid, in hours from now,
+                    up to 87600 (ten years). 0, the default, never expires. An
+                    expired app password is refused by every protocol until it
+                    is given a new validity.
+                  type: integer
               type: object
       summary: Create App Password
   /api/v1/add/bcc:
@@ -772,6 +781,100 @@ paths:
                   type: object
               type: object
       summary: Issue Domain Admin SSO token
+  /api/v1/edit/app-passwd:
+    post:
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "200":
+          content:
+            application/json:
+              examples:
+                response:
+                  value:
+                    - log:
+                        - app_passwd
+                        - edit
+                        - active: "1"
+                          app_name: wordpress
+                          id:
+                            - "2"
+                          validity: "720"
+                      msg:
+                        - object_modified
+                        - "2"
+                      type: success
+              schema:
+                properties:
+                  log:
+                    description: contains request object
+                    items: {}
+                    type: array
+                  msg:
+                    items: {}
+                    type: array
+                  type:
+                    enum:
+                      - success
+                      - danger
+                      - error
+                    type: string
+                type: object
+          description: OK
+          headers: {}
+      tags:
+        - App Passwords
+      description: >-
+        You can update one or more app passwords per request. You can also send
+        just attributes you want to change. This is also how an app password is
+        given, extended or relieved of an expiry.
+      operationId: Update App Password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              example:
+                attr:
+                  active: "1"
+                  app_name: wordpress
+                  validity: "720"
+                items: ["2"]
+              properties:
+                attr:
+                  properties:
+                    active:
+                      description: is app password active or not
+                      type: boolean
+                    app_name:
+                      description: name of your app password
+                      type: string
+                    app_passwd:
+                      description: your app password
+                      type: string
+                    app_passwd2:
+                      description: your app password
+                      type: string
+                    protocols:
+                      description: >-
+                        protocols the app password may be used with, e.g.
+                        imap_access, smtp_access, eas_access, dav_access,
+                        pop3_access, sieve_access
+                      items:
+                        type: string
+                      type: array
+                    validity:
+                      description: >-
+                        how long the app password stays valid, in hours from
+                        now, up to 87600 (ten years). 0 removes the expiry.
+                        Omitting it, or sending an empty string, keeps the
+                        expiry the app password already has.
+                      type: integer
+                  type: object
+                items:
+                  description: contains list of app passwords you want to update
+                  type: object
+              type: object
+      summary: Update App Password
   /api/v1/edit/da-acl:
     post:
       responses:
@@ -4333,10 +4436,12 @@ paths:
                     - active: "1"
                       created: "2019-12-21 16:04:55"
                       domain: mailcow.email
+                      expired: false
                       id: 2
                       mailbox: hello@mailcow.email
                       modified: null
                       name: emclient
+                      validity: 1798761600
           description: OK
           headers: {}
       tags:

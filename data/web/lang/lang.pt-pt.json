@@ -40,7 +40,8 @@
         "syncjob": "Adicionar sincronização",
         "validate": "Validar",
         "validation_success": "Validado com sucesso",
-        "app_passwd_protocols": "Protocolos permitidos para senha de aplicação"
+        "app_passwd_protocols": "Protocolos permitidos para senha de aplicação",
+        "app_passwd_validity": "Expira em"
     },
     "admin": {
         "iam_domain": "Aplica-se a",
@@ -205,6 +206,11 @@
         "unchanged_if_empty": "Deixar em branco para não modificar",
         "username": "Administrador",
         "app_passwd_protocols": "Protocolos permitidos para palavra-passe de aplicação",
+        "app_passwd_expired": "Esta palavra-passe de aplicação expirou e já não permite qualquer início de sessão.",
+        "app_passwd_valid_until": "Válida até",
+        "app_passwd_validity": "Expira em",
+        "app_passwd_validity_forever": "Esta palavra-passe de aplicação não expira.",
+        "app_passwd_validity_keep": "Manter a expiração atual",
         "allowed_protocols": "Protocolos permitidos para acesso direto do utilizador (não afeta os protocolos de palavra-passe da aplicação)",
         "pgp_enforce": "Exigir cifra PGP no armazenamento",
         "pgp_enforce_info": "Todas as caixas deste domínio têm de armazenar o correio cifrado. A chave pública é pedida no início de sessão e o utilizador não pode desligar a cifra depois. Exige que a cifra PGP no armazenamento esteja permitida para o domínio.",

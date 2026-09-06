@@ -47,7 +47,7 @@ $number_of_app_passwords = 0;
 foreach (app_passwd("get") as $app_password)
 {
     $app_password = app_passwd("details", $app_password['id']);
-    if ($app_password['active'])
+    if ($app_password['active'] && !$app_password['expired'])
     {
         $number_of_app_passwords++;
     }

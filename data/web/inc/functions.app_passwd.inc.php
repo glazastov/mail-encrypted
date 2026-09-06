@@ -1,4 +1,18 @@
 <?php
+function app_passwd_expiry($_validity) {
+  $hours = filter_var($_validity, FILTER_VALIDATE_INT, array('options' => array('min_range' => 0, 'max_range' => 87600)));
+  if ($hours === false) {
+    return false;
+  }
+  if ($hours === 0) {
+    return 0;
+  }
+  return time() + ($hours * 3600);
+}
+function app_passwd_expired($_validity) {
+  $validity = intval($_validity);
+  return $validity !== 0 && $validity <= time();
+}
 function app_passwd($_action, $_data = null) {
   global $pdo;
   global $lang;
@@ -34,6 +48,15 @@ function app_passwd($_action, $_data = null) {
       $eas_access = (in_array('eas_access', $protocols)) ? 1 : 0;
       $pop3_access = (in_array('pop3_access', $protocols)) ? 1 : 0;
       $sieve_access = (in_array('sieve_access', $protocols)) ? 1 : 0;
+      $validity = app_passwd_expiry(isset($_data['validity']) ? $_data['validity'] : 0);
+      if ($validity === false) {
+        $_SESSION['return'][] = array(
+          'type' => 'danger',
+          'log' => array(__FUNCTION__, $_action, $_data_log),
+          'msg' => 'app_passwd_validity_invalid'
+        );
+        return false;
+      }
       $domain = mailbox('get', 'mailbox_details', $username)['domain'];
       if (empty($domain)) {
         $_SESSION['return'][] = array(
@@ -55,8 +78,8 @@ function app_passwd($_action, $_data = null) {
         );
         return false;
       }
-      $stmt = $pdo->prepare("INSERT INTO `app_passwd` (`name`, `mailbox`, `domain`, `password`, `imap_access`, `smtp_access`, `eas_access`, `dav_access`, `pop3_access`, `sieve_access`, `active`)
-        VALUES (:app_name, :mailbox, :domain, :password, :imap_access, :smtp_access, :eas_access, :dav_access, :pop3_access, :sieve_access, :active)");
+      $stmt = $pdo->prepare("INSERT INTO `app_passwd` (`name`, `mailbox`, `domain`, `password`, `imap_access`, `smtp_access`, `eas_access`, `dav_access`, `pop3_access`, `sieve_access`, `validity`, `active`)
+        VALUES (:app_name, :mailbox, :domain, :password, :imap_access, :smtp_access, :eas_access, :dav_access, :pop3_access, :sieve_access, :validity, :active)");
       $stmt->execute(array(
         ':app_name' => $app_name,
         ':mailbox' => $username,
@@ -68,6 +91,7 @@ function app_passwd($_action, $_data = null) {
         ':dav_access' => $dav_access,
         ':pop3_access' => $pop3_access,
         ':sieve_access' => $sieve_access,
+        ':validity' => $validity,
         ':active' => $active
       ));
       $_SESSION['return'][] = array(
@@ -102,6 +126,20 @@ function app_passwd($_action, $_data = null) {
             $sieve_access = $is_now['sieve_access'];
           }
           $active = (isset($_data['active'])) ? intval($_data['active']) : $is_now['active'];
+          if (isset($_data['validity']) && $_data['validity'] !== '') {
+            $validity = app_passwd_expiry($_data['validity']);
+            if ($validity === false) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_data_log),
+                'msg' => 'app_passwd_validity_invalid'
+              );
+              continue;
+            }
+          }
+          else {
+            $validity = intval($is_now['validity']);
+          }
         }
         else {
           $_SESSION['return'][] = array(
@@ -136,6 +174,7 @@ function app_passwd($_action, $_data = null) {
           `dav_access` = :dav_access,
           `pop3_access` = :pop3_access,
           `sieve_access` = :sieve_access,
+          `validity` = :validity,
           `active` = :active
             WHERE `id` = :id");
         $stmt->execute(array(
@@ -147,6 +186,7 @@ function app_passwd($_action, $_data = null) {
           ':dav_access' => $dav_access,
           ':pop3_access' => $pop3_access,
           ':sieve_access' => $sieve_access,
+          ':validity' => $validity,
           ':active' => $active,
           ':id' => $id
         ));
@@ -208,6 +248,8 @@ function app_passwd($_action, $_data = null) {
         return false;
       }
       $app_passwd_data['name'] = htmlspecialchars(trim($app_passwd_data['name']));
+      $app_passwd_data['validity'] = intval($app_passwd_data['validity']);
+      $app_passwd_data['expired'] = app_passwd_expired($app_passwd_data['validity']);
       return $app_passwd_data;
       break;
   }
