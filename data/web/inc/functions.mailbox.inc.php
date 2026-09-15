@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/functions.quota_lock.inc.php';
 // OpenPGP armor helpers. The web container has no dependable gpg binding, so
 // validation is structural: markers, base64, the CRC24 checksum and the first
 // packet tag. That rejects everything which would fail at delivery time
@@ -3263,14 +3264,16 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 continue;
               }
               // todo: should be using api here
+              // quota_all counts every mailbox above the new maximum at that
+              // maximum, since saving brings them down to it.
               $stmt = $pdo->prepare("SELECT
                   COUNT(*) AS count,
                   MAX(COALESCE(ROUND(`quota`/1048576), 0)) AS `biggest_mailbox`,
-                  COALESCE(ROUND(SUM(`quota`)/1048576), 0) AS `quota_all`
+                  COALESCE(ROUND(SUM(LEAST(`quota`, :maxquota_b))/1048576), 0) AS `quota_all`
                     FROM `mailbox`
                       WHERE (`kind` = '' OR `kind` = NULL)
                         AND domain = :domain");
-              $stmt->execute(array(':domain' => $domain));
+              $stmt->execute(array(':domain' => $domain, ':maxquota_b' => intval($maxquota) * 1048576));
               $MailboxData = $stmt->fetch(PDO::FETCH_ASSOC);
               // todo: should be using api here
               $stmt = $pdo->prepare("SELECT COUNT(*) AS `count` FROM `alias`
@@ -3309,14 +3312,6 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                   'type' => 'danger',
                   'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
                   'msg' => 'maxquota_empty'
-                );
-                continue;
-              }
-              if ($MailboxData['biggest_mailbox'] > $maxquota) {
-                $_SESSION['return'][] = array(
-                  'type' => 'danger',
-                  'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
-                  'msg' => array('max_quota_in_use', $MailboxData['biggest_mailbox'])
                 );
                 continue;
               }
@@ -3380,6 +3375,27 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                 ':description' => $description,
                 ':domain' => $domain
               ));
+              // A lower maximum is not refused while mailboxes are above it:
+              // they come down to it, and the ones already storing more are
+              // locked read-only until they fit again.
+              if ($MailboxData['biggest_mailbox'] > $maxquota) {
+                $stmt = $pdo->prepare("SELECT `username` FROM `mailbox`
+                  WHERE (`kind` = '' OR `kind` IS NULL)
+                    AND `domain` = :domain
+                    AND `quota` > :maxquota_b");
+                $stmt->execute(array(':domain' => $domain, ':maxquota_b' => intval($maxquota) * 1048576));
+                $lowered = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                $stmt = $pdo->prepare("UPDATE `mailbox` SET `quota` = :maxquota_b
+                  WHERE (`kind` = '' OR `kind` IS NULL)
+                    AND `domain` = :domain
+                    AND `quota` > :above_b");
+                $stmt->execute(array(
+                  ':domain' => $domain,
+                  ':maxquota_b' => intval($maxquota) * 1048576,
+                  ':above_b' => intval($maxquota) * 1048576
+                ));
+                quota_lock_report(quota_lock_sync($lowered, true), array(__FUNCTION__, $_action, $_type, $_data_log, $_attr));
+              }
               // save tags
               foreach($tags as $index => $tag){
                 if (empty($tag)) continue;
@@ -3853,6 +3869,18 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               );
               return false;
             }
+            // Setting any other status by hand lifts a quota lock for good.
+            if ($active != 3) {
+              $stmt = $pdo->prepare("UPDATE `mailbox` SET
+                  `attributes` = JSON_REMOVE(`attributes`, '$.quota_lock_from')
+                    WHERE `username` = :username
+                      AND JSON_VALUE(`attributes`, '$.quota_lock_from') IS NOT NULL");
+              $stmt->execute(array(':username' => $username));
+            }
+            // Lowering the quota below what the mailbox stores locks it; a
+            // quota it fits in again gives a locked mailbox its status back.
+            $quota_lowered = $quota_b > 0 && ($is_now['quota'] == 0 || $quota_b < $is_now['quota']);
+            quota_lock_report(quota_lock_sync(array($username), $quota_lowered), array(__FUNCTION__, $_action, $_type, $_data_log, $_attr));
             // save delimiter_action
             if (isset($_data['tagged_mail_handler'])) {
               mailbox('edit', 'delimiter_action', array(

@@ -197,6 +197,9 @@ services:
         ofelia.job-exec.phpfpm_ldap_sync.schedule: "0 * * * * *"
         ofelia.job-exec.phpfpm_ldap_sync.no-overlap: "true"
         ofelia.job-exec.phpfpm_ldap_sync.command: "/bin/bash -c \"php /crons/ldap-sync.php || exit 0\""
+        ofelia.job-exec.phpfpm_quota_lock_sync.schedule: "0 * * * * *"
+        ofelia.job-exec.phpfpm_quota_lock_sync.no-overlap: "true"
+        ofelia.job-exec.phpfpm_quota_lock_sync.command: "/bin/bash -c \"php /crons/quota-lock-sync.php || exit 0\""
       networks:
         mailcow-network:
           aliases:

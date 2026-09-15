@@ -72,6 +72,7 @@ proxy_read_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_sasl_passwd_maps_trans
   $mynetworks,
   $smtpd_sender_login_maps,
   proxy:mysql:/opt/postfix/conf/sql/mysql_read_only_sender_access.cf,
+  proxy:mysql:/opt/postfix/conf/sql/mysql_quota_locked_recipient_access.cf,
   $smtp_sasl_password_maps
 queue_run_delay = 300s
 relay_domains = proxy:mysql:/opt/postfix/conf/sql/mysql_virtual_relay_domain_maps.cf
@@ -90,7 +91,8 @@ smtpd_forbid_bare_newline = yes
 smtpd_hard_error_limit = ${stress?1}${stress:5}
 smtpd_helo_required = yes
 smtpd_proxy_timeout = 600s
-smtpd_recipient_restrictions = check_recipient_mx_access proxy:mysql:/opt/postfix/conf/sql/mysql_mbr_access_maps.cf,
+smtpd_recipient_restrictions = check_recipient_access proxy:mysql:/opt/postfix/conf/sql/mysql_quota_locked_recipient_access.cf,
+  check_recipient_mx_access proxy:mysql:/opt/postfix/conf/sql/mysql_mbr_access_maps.cf,
   permit_sasl_authenticated,
   permit_mynetworks,
   check_recipient_access proxy:mysql:/opt/postfix/conf/sql/mysql_tls_enforce_in_policy.cf,

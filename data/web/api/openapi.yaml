@@ -3343,7 +3343,13 @@ paths:
                       description: limit count of mailboxes associated with this domain
                       type: number
                     maxquota:
-                      description: maximum quota per mailbox
+                      description: >-
+                        maximum quota per mailbox in MiB. Lowering it below
+                        mailboxes that are above it is accepted: they are brought
+                        down to it, and the active ones already storing more are
+                        read-only (active 3) until they fit again, as when their
+                        own quota is lowered. The response carries a
+                        mailbox_quota_locked warning naming them.
                       type: number
                     pgp_storage:
                       description: >-
@@ -3681,7 +3687,13 @@ paths:
                       description: new mailbox password when using `mailcow` as the authentication source.
                       type: string
                     quota:
-                      description: mailbox quota
+                      description: >-
+                        mailbox quota in MiB. Lowering it below what the
+                        mailbox already stores is accepted: an active mailbox
+                        becomes read-only (active 3) until it fits again, can
+                        still read and delete mail, and gets its status back on
+                        its own. The response carries a mailbox_quota_locked
+                        warning naming it.
                       type: number
                     sender_acl:
                       description: list of allowed send from addresses
