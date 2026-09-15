@@ -1,4 +1,17 @@
 <?php
+// A read-only mailbox may sign in to the mailcow UI and SOGo (service NONE) and
+// read over IMAP and POP3, where Dovecot's read-only ACL refuses every change.
+// SMTP, Sieve, EAS and DAV would let it send or modify, so they stay closed.
+// Postfix also excludes this status from delivery maps and rejects it as a
+// sender.
+function mailbox_login_allowed($active, $service = 'NONE') {
+  if ((int)$active === 1) {
+    return true;
+  }
+
+  return (int)$active === 3 && in_array(strtoupper((string)$service), array('NONE', 'IMAP', 'POP3'), true);
+}
+
 function check_login($user, $pass, $extra = null) {
   global $pdo;
   global $redis;
@@ -239,17 +252,16 @@ function user_login($user, $pass, $extra = null){
       $result = ldap_mbox_login($user, $pass, array('is_internal' => $is_internal, 'create' => true));
     }
     if ($result !== false){
-      // double check if mailbox is active
-      $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+      // A read-only mailbox may still log in; mailbox_login_allowed decides
+      // which services it reaches.
+      $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
       INNER JOIN domain on mailbox.domain = domain.domain
       WHERE `kind` NOT REGEXP 'location|thing|group'
-        AND `mailbox`.`active`='1'
-        AND `domain`.`active`='1'
         AND `username` = :user");
       $stmt->execute(array(':user' => $user));
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      if (!empty($row)) {
+      if (!empty($row) && mailbox_login_allowed($row['active'], $extra['service']) && $row['d_active'] == 1) {
         // check if user has access to service (imap, smtp, pop3, sieve, dav, eas) if service is set
         $row['attributes'] = json_decode($row['attributes'], true);
         if ($extra['service'] != 'NONE') {
@@ -267,6 +279,9 @@ function user_login($user, $pass, $extra = null){
 
   // check if user has access to service (imap, smtp, pop3, sieve) if service is set
   $row['attributes'] = json_decode($row['attributes'], true);
+  if (!mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
+    return false;
+  }
   if ($extra['service'] != 'NONE') {
     $key = strtolower($extra['service']) . "_access";
     if (isset($row['attributes'][$key]) && $row['attributes'][$key] != '1') {
@@ -279,16 +294,14 @@ function user_login($user, $pass, $extra = null){
       if (intval($iam_settings['mailpassword_flow']) == 1){
         $result = keycloak_mbox_login_rest($user, $pass, array('is_internal' => $is_internal));
         if ($result !== false) {
-          // double check if mailbox and domain is active
-          $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+          // mailbox_login_allowed decides which services a read-only mailbox reaches.
+          $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
           INNER JOIN domain on mailbox.domain = domain.domain
           WHERE `kind` NOT REGEXP 'location|thing|group'
-            AND `mailbox`.`active`='1'
-            AND `domain`.`active`='1'
             AND `username` = :user");
           $stmt->execute(array(':user' => $user));
           $row = $stmt->fetch(PDO::FETCH_ASSOC);
-          if (empty($row)) {
+          if (empty($row) || !mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
             return false;
           }
 
@@ -336,16 +349,14 @@ function user_login($user, $pass, $extra = null){
       // user authsource is ldap
       $result = ldap_mbox_login($user, $pass, array('is_internal' => $is_internal));
       if ($result !== false) {
-        // double check if mailbox and domain is active
-        $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+        // mailbox_login_allowed decides which services a read-only mailbox reaches.
+        $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
         INNER JOIN domain on mailbox.domain = domain.domain
         WHERE `kind` NOT REGEXP 'location|thing|group'
-          AND `mailbox`.`active`='1'
-          AND `domain`.`active`='1'
           AND `username` = :user");
         $stmt->execute(array(':user' => $user));
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (empty($row)) {
+        if (empty($row) || !mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
           return false;
         }
 
@@ -387,7 +398,7 @@ function user_login($user, $pass, $extra = null){
       return $result;
     break;
     case 'mailcow':
-      if ($row['active'] != 1 || $row['d_active'] != 1) {
+      if (!mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
         return false;
       }
       // verify password
@@ -457,11 +468,11 @@ function apppass_login($user, $pass, $extra = null){
   }
 
   // fetch app password data
-  $stmt = $pdo->prepare("SELECT `app_passwd`.*, `app_passwd`.`password` as `password`, `app_passwd`.`id` as `app_passwd_id` FROM `app_passwd`
+  $stmt = $pdo->prepare("SELECT `app_passwd`.*, `app_passwd`.`password` as `password`, `app_passwd`.`id` as `app_passwd_id`, `mailbox`.`active` as `mailbox_active` FROM `app_passwd`
     INNER JOIN `mailbox` ON `mailbox`.`username` = `app_passwd`.`mailbox`
     INNER JOIN `domain` ON `mailbox`.`domain` = `domain`.`domain`
     WHERE `mailbox`.`kind` NOT REGEXP 'location|thing|group'
-      AND `mailbox`.`active` = '1'
+      AND `mailbox`.`active` IN ('1', '3')
       AND `domain`.`active` = '1'
       AND `app_passwd`.`active` = '1'
       AND (`app_passwd`.`validity` = 0 OR `app_passwd`.`validity` > :validity_now)
@@ -475,6 +486,9 @@ function apppass_login($user, $pass, $extra = null){
   $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   foreach ($rows as $row) {
+    if (!mailbox_login_allowed($row['mailbox_active'], $extra['service'])) {
+      continue;
+    }
     if ($extra['service'] != 'NONE' && $row[strtolower($extra['service']) . '_access'] != '1'){
       continue;
     }

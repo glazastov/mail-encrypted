@@ -999,7 +999,7 @@ function update_sogo_static_view($mailbox = null) {
   $mailbox_exists = false;
   if ($mailbox !== null) {
     // Check if the mailbox exists
-    $stmt = $pdo->prepare("SELECT username FROM mailbox WHERE username = :mailbox AND active = '1'");
+    $stmt = $pdo->prepare("SELECT username FROM mailbox WHERE username = :mailbox AND active IN ('1', '3')");
     $stmt->execute(array(':mailbox' => $mailbox));
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row){
@@ -1035,7 +1035,7 @@ function update_sogo_static_view($mailbox = null) {
         LEFT OUTER JOIN grouped_domain_alias_address gda ON gda.username = mailbox.username
         LEFT OUTER JOIN grouped_sender_acl_external external_acl ON external_acl.username = mailbox.username
       WHERE
-        mailbox.active = '1'
+        mailbox.active IN ('1', '3')
         $subquery
       ON DUPLICATE KEY UPDATE
         `domain` = VALUES(`domain`),
@@ -1063,7 +1063,7 @@ function update_sogo_static_view($mailbox = null) {
     ));
   }
 
-  $stmt = $pdo->query("DELETE FROM _sogo_static_view WHERE `c_uid` NOT IN (SELECT `username` FROM `mailbox` WHERE `active` = '1');");
+  $stmt = $pdo->query("DELETE FROM _sogo_static_view WHERE `c_uid` NOT IN (SELECT `username` FROM `mailbox` WHERE `active` IN ('1', '3'));");
 
   flush_memcached();
 }
@@ -3150,7 +3150,7 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
           $stmt->execute(array(':user' => $info['email']));
           $row = $stmt->fetch(PDO::FETCH_ASSOC);
         }
-        if ($row['active'] != 1 || $row['d_active'] != 1) {
+        if (!mailbox_login_allowed($row['active']) || $row['d_active'] != 1) {
           clear_session();
           $_SESSION['return'][] =  array(
             'type' => 'danger',
@@ -3216,16 +3216,14 @@ function identity_provider($_action = null, $_data = null, $_extra = null) {
         return false;
       }
 
-      // double check if mailbox and domain is active
-      $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+      // A read-only provisioned mailbox can sign in to the UI and SOGo.
+      $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
       INNER JOIN domain on mailbox.domain = domain.domain
       WHERE `kind` NOT REGEXP 'location|thing|group'
-        AND `mailbox`.`active`='1'
-        AND `domain`.`active`='1'
         AND `username` = :user");
       $stmt->execute(array(':user' => $info['email']));
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if (empty($row)) {
+      if (empty($row) || !mailbox_login_allowed($row['active']) || $row['d_active'] != 1) {
         clear_session();
         $_SESSION['return'][] =  array(
           'type' => 'danger',

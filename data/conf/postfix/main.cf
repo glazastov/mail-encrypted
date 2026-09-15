@@ -71,6 +71,7 @@ proxy_read_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_sasl_passwd_maps_trans
   $transport_maps,
   $mynetworks,
   $smtpd_sender_login_maps,
+  proxy:mysql:/opt/postfix/conf/sql/mysql_read_only_sender_access.cf,
   $smtp_sasl_password_maps
 queue_run_delay = 300s
 relay_domains = proxy:mysql:/opt/postfix/conf/sql/mysql_virtual_relay_domain_maps.cf
@@ -100,7 +101,8 @@ smtpd_sasl_authenticated_header = yes
 smtpd_sasl_path = inet:dovecot:10001
 smtpd_sasl_type = dovecot
 smtpd_sender_login_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_virtual_sender_acl.cf
-smtpd_sender_restrictions = reject_authenticated_sender_login_mismatch,
+smtpd_sender_restrictions = check_sender_access proxy:mysql:/opt/postfix/conf/sql/mysql_read_only_sender_access.cf,
+  reject_authenticated_sender_login_mismatch,
   permit_mynetworks,
   permit_sasl_authenticated,
   reject_unlisted_sender,

@@ -671,7 +671,7 @@ jQuery(function($){
           defaultContent: '',
           responsivePriority: 6,
           render: function (data, type) {
-            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':2==data&&'&#8212;');
+            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':(2==data?'&#8212;':(3==data?'<i class="bi bi-eye" title="' + lang.read_only_mailbox + '"><span class="sorting-value">3</span></i>':'')));
           }
         },
         {
@@ -1184,7 +1184,7 @@ jQuery(function($){
           defaultContent: '',
           responsivePriority: 4,
           render: function (data, type) {
-            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':2==data&&'&#8212;');
+            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':(2==data?'&#8212;':(3==data?'<i class="bi bi-eye" title="' + lang.read_only_mailbox + '"><span class="sorting-value">3</span></i>':'')));
           }
         },
         {
@@ -1422,7 +1422,7 @@ jQuery(function($){
           defaultContent: '',
           responsivePriority: 4,
           render: function (data, type) {
-            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':2==data&&'&#8212;');
+            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':(2==data?'&#8212;':(3==data?'<i class="bi bi-eye" title="' + lang.read_only_mailbox + '"><span class="sorting-value">3</span></i>':'')));
           }
         },
         {
@@ -1534,7 +1534,7 @@ jQuery(function($){
           data: 'active',
           defaultContent: '',
           render: function (data, type) {
-            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':2==data&&'&#8212;');
+            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':(2==data?'&#8212;':(3==data?'<i class="bi bi-eye" title="' + lang.read_only_mailbox + '"><span class="sorting-value">3</span></i>':'')));
           }
         },
         {
@@ -1680,7 +1680,7 @@ jQuery(function($){
           data: 'active',
           defaultContent: '',
           render: function (data, type) {
-            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':2==data&&'&#8212;');
+            return 1==data?'<i class="bi bi-check-lg"><span class="sorting-value">1</span></i>':(0==data?'<i class="bi bi-x-lg"><span class="sorting-value">0</span></i>':(2==data?'&#8212;':(3==data?'<i class="bi bi-eye" title="' + lang.read_only_mailbox + '"><span class="sorting-value">3</span></i>':'')));
           }
         },
         {

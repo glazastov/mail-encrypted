@@ -154,6 +154,7 @@
         <select name="active" class="form-control">
           <option value="1"{% if template.attributes.active == '1' %} selected{% endif %}>{{ lang.edit.active }}</option>
           <option value="2"{% if template.attributes.active == '2' %} selected{% endif %}>{{ lang.edit.disable_login }}</option>
+          <option value="3"{% if template.attributes.active == '3' %} selected{% endif %}>{{ lang.edit.read_only_mailbox }}</option>
           <option value="0"{% if template.attributes.active == '0' %} selected{% endif %}>{{ lang.edit.inactive }}</option>
         </select>
       </div>
