@@ -44,36 +44,41 @@ $_SESSION['return'] = array();
 
 require_once __DIR__ . '/../../../data/web/inc/functions.auth.inc.php';
 
+// every protocol flag is on, so only the mailbox status can refuse the login
 $pdo->rows = array(array(
-  'app_passwd_id' => 3,
+  'app_passwd_id' => 7,
   'password' => '{PLAIN}a-very-long-app-password',
   'validity' => 0,
-  'mailbox_active' => '1',
+  'mailbox_active' => '3',
   'imap_access' => 1,
-  'smtp_access' => 0,
+  'pop3_access' => 1,
+  'smtp_access' => 1,
+  'sieve_access' => 1,
+  'eas_access' => 1,
+  'dav_access' => 1,
 ));
 
-$result = apppass_login('teste@example.org', 'a-very-long-app-password', array(
-  'service' => 'imap',
-  'is_internal' => true,
-));
-check('a password the database still hands out logs the mailbox in', $result, 'user');
+$login = function ($service) {
+  return apppass_login('arquivo@example.org', 'a-very-long-app-password', array(
+    'service' => $service,
+    'is_internal' => true,
+  ));
+};
 
-$query = $pdo->queries[0];
-check('the login only considers passwords that have not expired',
-  strpos($query['sql'], "(`app_passwd`.`validity` = 0 OR `app_passwd`.`validity` > :validity_now)") !== false,
-  true);
-check('the moment it is compared against is passed as a parameter',
-  array_key_exists(':validity_now', $query['params']), true);
-check('and it is now', abs($query['params'][':validity_now'] - time()) <= 5, true);
-check('the address is still passed as a parameter too',
-  $query['params'][':user'], 'teste@example.org');
-check('an expired password is left behind by the database, not by the loop',
-  substr_count($query['sql'], ':validity_now'), 1);
+check('a read-only mailbox reads over IMAP with an app password', $login('imap'), 'user');
+check('and over POP3', $login('pop3'), 'user');
+check('SOGo (service NONE) still accepts it', $login('NONE'), 'user');
+foreach (array('smtp', 'sieve', 'eas', 'dav') as $service) {
+  check("but $service refuses it", $login($service), false);
+}
 
-$expired = time() - 60;
-check('the clause the login uses and the one the interface uses agree on an expired password',
-  $expired != 0 && !($expired > time()), true);
+check('the database hands out app passwords of read-only mailboxes',
+  strpos($pdo->queries[0]['sql'], "`mailbox`.`active` IN ('1', '3')") !== false, true);
+check('and reports the status the loop decides on',
+  strpos($pdo->queries[0]['sql'], "`mailbox`.`active` as `mailbox_active`") !== false, true);
+
+$pdo->rows[0]['mailbox_active'] = '1';
+check('an active mailbox keeps SMTP', $login('smtp'), 'user');
 
 if ($failures) {
   fwrite(STDERR, sprintf("\n%d of %d checks failed\n", count($failures), $checks));

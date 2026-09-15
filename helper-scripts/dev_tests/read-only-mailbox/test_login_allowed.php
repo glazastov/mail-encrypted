@@ -21,13 +21,15 @@ require_once __DIR__ . '/../../../data/web/inc/functions.auth.inc.php';
 check('active mailbox, UI session', mailbox_login_allowed('1'), true);
 foreach (array('IMAP', 'POP3', 'SMTP', 'SIEVE', 'EAS', 'DAV') as $service) {
   check("active mailbox, $service", mailbox_login_allowed('1', $service), true);
-  check("read-only mailbox, $service", mailbox_login_allowed('3', $service), false);
+  // reading is allowed; Dovecot's read-only ACL refuses the changes
+  check("read-only mailbox, $service", mailbox_login_allowed('3', $service), in_array($service, array('IMAP', 'POP3'), true));
   check("login disabled, $service", mailbox_login_allowed('2', $service), false);
   check("inactive mailbox, $service", mailbox_login_allowed('0', $service), false);
 }
 check('read-only mailbox, UI session', mailbox_login_allowed('3'), true);
 check('read-only mailbox, explicit NONE', mailbox_login_allowed('3', 'NONE'), true);
 check('read-only mailbox, lowercase none', mailbox_login_allowed('3', 'none'), true);
+check('read-only mailbox, lowercase imap', mailbox_login_allowed('3', 'imap'), true);
 check('login disabled, UI session', mailbox_login_allowed('2'), false);
 check('inactive mailbox, UI session', mailbox_login_allowed('0'), false);
 

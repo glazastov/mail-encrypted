@@ -134,7 +134,11 @@ connect = "host=/var/run/mysqld/mysqld.sock dbname=${DBNAME} user=${DBUSER} pass
 # did before this setting existed.
 # It is reported as on whenever the domain requires encryption and the mailbox
 # has a key, because the mailbox's own switch is not its to turn off then.
-user_query = SELECT CONCAT(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '$.mailbox_format')), mailbox.mailbox_path_prefix, '%d/%n/${MAILDIR_SUB}:VOLATILEDIR=/var/volatile/%u:INDEX=/var/vmail_index/%u') AS mail, '%s' AS protocol, 5000 AS uid, 5000 AS gid, concat('*:bytes=', mailbox.quota) AS quota_rule, IF(IFNULL(domain.pgp_storage, '1') = '1', IF(IFNULL(domain.pgp_enforce, 'none') <> 'none' AND COALESCE(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_public_key')), '') <> '', '1', JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_storage_encrypt'))), '0') AS pgp_storage_encrypt, JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_failure_mode')) AS pgp_failure_mode FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain WHERE mailbox.username = '%u' AND mailbox.active IN ('1', '2', '3')
+# A read-only mailbox (active 3) gets a global ACL granting its owner only
+# lookup and read, and ignores per-mailbox ACL files so no owner entry left in
+# one can grant more. IMAP, POP3 and SOGo can read but never flag, move,
+# append or expunge. NULL keeps the plugin defaults for every other mailbox.
+user_query = SELECT CONCAT(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '$.mailbox_format')), mailbox.mailbox_path_prefix, '%d/%n/${MAILDIR_SUB}:VOLATILEDIR=/var/volatile/%u:INDEX=/var/vmail_index/%u') AS mail, '%s' AS protocol, 5000 AS uid, 5000 AS gid, concat('*:bytes=', mailbox.quota) AS quota_rule, IF(IFNULL(domain.pgp_storage, '1') = '1', IF(IFNULL(domain.pgp_enforce, 'none') <> 'none' AND COALESCE(JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_public_key')), '') <> '', '1', JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_storage_encrypt'))), '0') AS pgp_storage_encrypt, JSON_UNQUOTE(JSON_VALUE(mailbox.attributes, '\$.pgp_failure_mode')) AS pgp_failure_mode, IF(mailbox.active = '3', 'vfile:/etc/dovecot/acl-read-only', NULL) AS acl, IF(mailbox.active = '3', 'yes', NULL) AS acl_globals_only FROM mailbox LEFT JOIN domain ON domain.domain = mailbox.domain WHERE mailbox.username = '%u' AND mailbox.active IN ('1', '2', '3')
 iterate_query = SELECT username FROM mailbox WHERE active IN ('1', '2', '3');
 EOF
 
