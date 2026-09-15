@@ -9,9 +9,11 @@
         "bshaffer/oauth2-server-php": "^1.11",
         "mustangostang/spyc": "^0.6.3",
         "directorytree/ldaprecord": "^3.3",
-        "twig/twig": "^3.0",
-        "stevenmaguire/oauth2-keycloak": "^4.0",
+        "twig/twig": "^3.26",
+        "stevenmaguire/oauth2-keycloak": "^6.1",
         "league/oauth2-client": "^2.7",
-        "bacon/bacon-qr-code": "^2.0"
+        "bacon/bacon-qr-code": "^2.0",
+        "guzzlehttp/guzzle": "^7.15.2",
+        "firebase/php-jwt": "^7.0"
     }
 }
