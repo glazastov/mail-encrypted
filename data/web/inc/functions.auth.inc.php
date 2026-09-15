@@ -1,4 +1,15 @@
 <?php
+// A read-only mailbox remains available through the mailcow UI and SOGo, but
+// never authenticates to a direct mail protocol. Postfix also excludes this
+// status from delivery maps and rejects it as an authenticated sender.
+function mailbox_login_allowed($active, $service = 'NONE') {
+  if ((int)$active === 1) {
+    return true;
+  }
+
+  return (int)$active === 3 && strtoupper((string)$service) === 'NONE';
+}
+
 function check_login($user, $pass, $extra = null) {
   global $pdo;
   global $redis;
@@ -239,17 +250,16 @@ function user_login($user, $pass, $extra = null){
       $result = ldap_mbox_login($user, $pass, array('is_internal' => $is_internal, 'create' => true));
     }
     if ($result !== false){
-      // double check if mailbox is active
-      $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+      // A provisioned mailbox can be read-only only through the mailcow/SOGo
+      // session path; direct protocol logins remain unavailable.
+      $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
       INNER JOIN domain on mailbox.domain = domain.domain
       WHERE `kind` NOT REGEXP 'location|thing|group'
-        AND `mailbox`.`active`='1'
-        AND `domain`.`active`='1'
         AND `username` = :user");
       $stmt->execute(array(':user' => $user));
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      if (!empty($row)) {
+      if (!empty($row) && mailbox_login_allowed($row['active'], $extra['service']) && $row['d_active'] == 1) {
         // check if user has access to service (imap, smtp, pop3, sieve, dav, eas) if service is set
         $row['attributes'] = json_decode($row['attributes'], true);
         if ($extra['service'] != 'NONE') {
@@ -267,6 +277,9 @@ function user_login($user, $pass, $extra = null){
 
   // check if user has access to service (imap, smtp, pop3, sieve) if service is set
   $row['attributes'] = json_decode($row['attributes'], true);
+  if (!mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
+    return false;
+  }
   if ($extra['service'] != 'NONE') {
     $key = strtolower($extra['service']) . "_access";
     if (isset($row['attributes'][$key]) && $row['attributes'][$key] != '1') {
@@ -279,16 +292,14 @@ function user_login($user, $pass, $extra = null){
       if (intval($iam_settings['mailpassword_flow']) == 1){
         $result = keycloak_mbox_login_rest($user, $pass, array('is_internal' => $is_internal));
         if ($result !== false) {
-          // double check if mailbox and domain is active
-          $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+          // The read-only status may only use the mailcow/SOGo session path.
+          $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
           INNER JOIN domain on mailbox.domain = domain.domain
           WHERE `kind` NOT REGEXP 'location|thing|group'
-            AND `mailbox`.`active`='1'
-            AND `domain`.`active`='1'
             AND `username` = :user");
           $stmt->execute(array(':user' => $user));
           $row = $stmt->fetch(PDO::FETCH_ASSOC);
-          if (empty($row)) {
+          if (empty($row) || !mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
             return false;
           }
 
@@ -336,16 +347,14 @@ function user_login($user, $pass, $extra = null){
       // user authsource is ldap
       $result = ldap_mbox_login($user, $pass, array('is_internal' => $is_internal));
       if ($result !== false) {
-        // double check if mailbox and domain is active
-        $stmt = $pdo->prepare("SELECT * FROM `mailbox`
+        // The read-only status may only use the mailcow/SOGo session path.
+        $stmt = $pdo->prepare("SELECT mailbox.*, domain.active AS d_active FROM `mailbox`
         INNER JOIN domain on mailbox.domain = domain.domain
         WHERE `kind` NOT REGEXP 'location|thing|group'
-          AND `mailbox`.`active`='1'
-          AND `domain`.`active`='1'
           AND `username` = :user");
         $stmt->execute(array(':user' => $user));
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (empty($row)) {
+        if (empty($row) || !mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
           return false;
         }
 
@@ -387,7 +396,7 @@ function user_login($user, $pass, $extra = null){
       return $result;
     break;
     case 'mailcow':
-      if ($row['active'] != 1 || $row['d_active'] != 1) {
+      if (!mailbox_login_allowed($row['active'], $extra['service']) || $row['d_active'] != 1) {
         return false;
       }
       // verify password
