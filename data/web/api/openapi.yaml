@@ -3692,8 +3692,11 @@ paths:
                         mailbox already stores is accepted: an active mailbox
                         becomes read-only (active 3) until it fits again, can
                         still read and delete mail, and gets its status back on
-                        its own. The response carries a mailbox_quota_locked
-                        warning naming it.
+                        its own. Setting active to 1 on a mailbox storing more
+                        than its quota locks it the same way, so unfreezing or
+                        reactivating it never leaves it active above its quota.
+                        The response carries a mailbox_quota_locked warning
+                        naming it.
                       type: number
                     sender_acl:
                       description: list of allowed send from addresses

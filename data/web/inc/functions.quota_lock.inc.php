@@ -12,6 +12,16 @@ function quota_lock_exceeds($bytes, $quota) {
   return (int)$quota > 0 && (int)$bytes > (int)$quota;
 }
 
+// Whether a mailbox edit has to lock the mailbox if it stores more than its
+// quota: when the quota is lowered, and when the mailbox becomes active again.
+// Otherwise unfreezing it, or deactivating and reactivating a locked one,
+// would leave it active above its quota. Quotas in bytes, 0 is unlimited.
+function quota_lock_edit_locks($old_quota, $new_quota, $old_active, $new_active) {
+  $lowered = (int)$new_quota > 0 && ((int)$old_quota == 0 || (int)$new_quota < (int)$old_quota);
+  $activated = (int)$new_active === 1 && (int)$old_active !== 1;
+  return $lowered || $activated;
+}
+
 // Locks, when $lock is set, the listed active mailboxes storing more than their
 // quota, and gives every locked mailbox that fits again its status back. With
 // $usernames null every mailbox is considered. Returns the usernames changed.

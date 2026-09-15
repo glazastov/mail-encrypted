@@ -3869,7 +3869,8 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
               );
               return false;
             }
-            // Setting any other status by hand lifts a quota lock for good.
+            // Setting any other status by hand replaces a quota lock; setting 1
+            // locks the mailbox again below if it still stores too much.
             if ($active != 3) {
               $stmt = $pdo->prepare("UPDATE `mailbox` SET
                   `attributes` = JSON_REMOVE(`attributes`, '$.quota_lock_from')
@@ -3877,10 +3878,11 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                       AND JSON_VALUE(`attributes`, '$.quota_lock_from') IS NOT NULL");
               $stmt->execute(array(':username' => $username));
             }
-            // Lowering the quota below what the mailbox stores locks it; a
-            // quota it fits in again gives a locked mailbox its status back.
-            $quota_lowered = $quota_b > 0 && ($is_now['quota'] == 0 || $quota_b < $is_now['quota']);
-            quota_lock_report(quota_lock_sync(array($username), $quota_lowered), array(__FUNCTION__, $_action, $_type, $_data_log, $_attr));
+            // Lowering the quota below what the mailbox stores, or making it
+            // active while it does, locks it; a quota it fits in again gives a
+            // locked mailbox its status back.
+            $lock = quota_lock_edit_locks($is_now['quota'], $quota_b, $is_now['active'], $active);
+            quota_lock_report(quota_lock_sync(array($username), $lock), array(__FUNCTION__, $_action, $_type, $_data_log, $_attr));
             // save delimiter_action
             if (isset($_data['tagged_mail_handler'])) {
               mailbox('edit', 'delimiter_action', array(
