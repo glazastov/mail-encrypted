@@ -5,17 +5,29 @@
    Unlike the Sieve based approach this covers every write path: LMTP
    delivery, IMAP APPEND (Sent, Drafts) and doveadm save.
 
-   The plugin never fails a save. If anything goes wrong the original,
-   unencrypted message is stored instead. */
+   The message cannot be filtered in save_begin(): an IMAP APPEND calls it
+   before the client has sent the literal, with a non-blocking stream that
+   only fills up as mailbox_save_continue() is called. So save_begin() and
+   save_continue() copy the input into a temporary stream, and save_finish(),
+   once all of it is there, runs the filter.
+
+   The storage below is still begun in save_begin(), because plugins above
+   us (zlib, mail_crypt) wrap its output stream as soon as their super
+   save_begin() returns. It reads from an empty chain stream, the way IMAP
+   CATENATE saves, and save_finish() appends the filtered message to it.
+
+   When the message cannot be encrypted, pgp_failure_mode decides between
+   storing the original and refusing the save. */
 
 #include "lib.h"
 #include "istream.h"
 #include "ostream.h"
 #include "iostream-temp.h"
+#include "istream-chain.h"
 #include "module-context.h"
 #include "mail-user.h"
 #include "mail-storage-private.h"
-#include "mailbox-list.h"
+#include "str.h"
 #include "restrict-access.h"
 #include "program-client.h"
 
@@ -45,8 +57,21 @@ struct pgp_storage_user {
 	bool enabled;
 };
 
+/* A message being buffered, between save_begin() and save_finish(). */
+struct pgp_storage_save {
+	struct mail_save_context *ctx;
+	struct istream *input;
+	struct ostream *temp_output;
+	/* what the storage below reads from */
+	struct istream *chain_input;
+	struct istream_chain *chain;
+};
+
 struct pgp_storage_mailbox {
 	union mailbox_module_context module_ctx;
+	/* Callers save one message into a mailbox at a time. ctx is NULL when
+	   nothing is buffered. */
+	struct pgp_storage_save save;
 };
 
 static MODULE_CONTEXT_DEFINE_INIT(pgp_storage_user_module,
@@ -67,34 +92,29 @@ static const char *const pgp_storage_forward_env[] = {
 	"PGP_STORAGE_DEBUG", "PGP_STORAGE_DEBUG_LOG", NULL
 };
 
+static const char *pgp_storage_temp_prefix(struct mail_user *user)
+{
+	/* mailbox_list_get_temp_prefix() is relative to the working directory,
+	   which an LMTP process running as vmail cannot write to. */
+	string_t *path = t_str_new(128);
+
+	mail_user_set_get_temp_prefix(path, user->set);
+	return str_c(path);
+}
+
+/* Runs the filter over the buffered message. Returns the encrypted message,
+   or NULL with original rewound to its start. */
 static struct istream *
 pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
-		       struct istream *input, bool *encrypted_r)
+		       struct istream *original)
 {
 	struct mail_user *user = box->storage->user;
-	const char *temp_prefix = mailbox_list_get_temp_prefix(box->list);
 	struct program_client_settings set;
 	struct program_client *pclient;
-	struct ostream *temp_output;
-	struct istream *original, *encrypted = NULL;
+	struct istream *encrypted = NULL;
 	enum program_client_exit_status status;
 	unsigned int i;
 	uoff_t size;
-
-	*encrypted_r = FALSE;
-
-	/* Buffer the message up front. program_client consumes the input
-	   stream, and the input from an IMAP APPEND is not seekable, so
-	   without this copy there would be nothing left to fall back to. */
-	temp_output = iostream_temp_create(temp_prefix, 0);
-	if (o_stream_send_istream(temp_output, input) !=
-	    OSTREAM_SEND_ISTREAM_RESULT_FINISHED) {
-		e_error(user->event, "pgp_storage: failed to buffer message: %s",
-			o_stream_get_error(temp_output));
-		o_stream_destroy(&temp_output);
-		return NULL;
-	}
-	original = iostream_temp_finish(&temp_output, IO_BLOCK_SIZE);
 
 	i_zero(&set);
 	restrict_access_init(&set.restrict_set);
@@ -115,7 +135,8 @@ pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
 	program_client_set_env(pclient, "PGP_STORAGE_RECIPIENT", user->username);
 
 	program_client_set_input(pclient, original);
-	program_client_set_output_seekable(pclient, temp_prefix);
+	program_client_set_output_seekable(pclient,
+					   pgp_storage_temp_prefix(user));
 
 	status = program_client_run(pclient);
 	if (status == PROGRAM_CLIENT_EXIT_STATUS_SUCCESS) {
@@ -130,17 +151,85 @@ pgp_storage_run_filter(struct mailbox *box, struct pgp_storage_user *puser,
 	program_client_destroy(&pclient);
 
 	if (encrypted != NULL) {
-		if (i_stream_get_size(encrypted, TRUE, &size) > 0 && size > 0) {
-			i_stream_unref(&original);
-			*encrypted_r = TRUE;
+		if (i_stream_get_size(encrypted, TRUE, &size) > 0 && size > 0)
 			return encrypted;
-		}
 		e_error(user->event, "pgp_storage: filter produced no output");
 		i_stream_unref(&encrypted);
 	}
 
 	i_stream_seek(original, 0);
-	return original;
+	return NULL;
+}
+
+static void pgp_storage_save_free(struct pgp_storage_save *save)
+{
+	o_stream_destroy(&save->temp_output);
+	i_stream_unref(&save->input);
+	i_stream_unref(&save->chain_input);
+	save->chain = NULL;
+	save->ctx = NULL;
+}
+
+/* Copies whatever input is available now. Returns -1 on error. */
+static int pgp_storage_save_buffer(struct mailbox *box,
+				   struct pgp_storage_save *save)
+{
+	switch (o_stream_send_istream(save->temp_output, save->input)) {
+	case OSTREAM_SEND_ISTREAM_RESULT_FINISHED:
+	case OSTREAM_SEND_ISTREAM_RESULT_WAIT_INPUT:
+		/* the rest comes with the next save_continue() */
+		return 0;
+	case OSTREAM_SEND_ISTREAM_RESULT_WAIT_OUTPUT:
+		/* the temp stream is blocking */
+		i_unreached();
+	case OSTREAM_SEND_ISTREAM_RESULT_ERROR_INPUT:
+		/* the caller reports its own input stream's errors */
+		mail_storage_set_error(box->storage, MAIL_ERROR_TEMP,
+				       MAIL_ERRSTR_CRITICAL_MSG);
+		return -1;
+	case OSTREAM_SEND_ISTREAM_RESULT_ERROR_OUTPUT:
+		mail_storage_set_critical(box->storage,
+			"pgp_storage: failed to buffer message: %s",
+			o_stream_get_error(save->temp_output));
+		return -1;
+	}
+	i_unreached();
+}
+
+/* Hands the message to the storage below, which was begun on the chain, and
+   finishes it the way IMAP CATENATE does. */
+static int pgp_storage_save_stream(struct pgp_storage_mailbox *mbox,
+				   struct mail_save_context *ctx,
+				   struct istream_chain *chain,
+				   struct istream *input)
+{
+	struct mailbox_vfuncs *super = &mbox->module_ctx.super;
+	ssize_t ret;
+
+	i_stream_chain_append(chain, input);
+	i_stream_chain_append_eof(chain);
+	do {
+		ret = i_stream_read(input);
+		i_assert(ret != 0);
+		if (super->save_continue(ctx) < 0) {
+			super->save_cancel(ctx);
+			return -1;
+		}
+	} while (ret != -1);
+
+	if (input->stream_errno != 0) {
+		mail_storage_set_critical(ctx->transaction->box->storage,
+			"pgp_storage: read(%s) failed: %s",
+			i_stream_get_name(input), i_stream_get_error(input));
+		super->save_cancel(ctx);
+		return -1;
+	}
+	/* one last continue, as mailbox_save_finish() does */
+	if (super->save_continue(ctx) < 0) {
+		super->save_cancel(ctx);
+		return -1;
+	}
+	return super->save_finish(ctx);
 }
 
 static int
@@ -150,9 +239,7 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 	struct pgp_storage_mailbox *mbox = PGP_STORAGE_CONTEXT(box);
 	struct pgp_storage_user *puser =
 		PGP_STORAGE_USER_CONTEXT(box->storage->user);
-	struct istream *filtered;
-	bool encrypted;
-	int ret;
+	struct pgp_storage_save *save = &mbox->save;
 
 	/* ctx->saving marks a message entering the store: an IMAP APPEND, or an
 	   LDA/LMTP delivery, which reaches us through mailbox_save_using_mail()
@@ -162,9 +249,62 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 	if (puser == NULL || !puser->enabled || !ctx->saving)
 		return mbox->module_ctx.super.save_begin(ctx, input);
 
-	filtered = pgp_storage_run_filter(box, puser, input, &encrypted);
+	if (save->ctx != NULL) {
+		mail_storage_set_critical(box->storage,
+			"pgp_storage: a save began while another was unfinished");
+		return -1;
+	}
 
-	if (!encrypted && puser->failure_mode != PGP_FAILURE_DELIVER) {
+	save->chain_input = i_stream_create_chain(&save->chain, IO_BLOCK_SIZE);
+	if (mbox->module_ctx.super.save_begin(ctx, save->chain_input) < 0) {
+		i_stream_unref(&save->chain_input);
+		save->chain = NULL;
+		return -1;
+	}
+	save->ctx = ctx;
+	save->input = input;
+	i_stream_ref(input);
+	save->temp_output = iostream_temp_create(
+		pgp_storage_temp_prefix(box->storage->user), 0);
+
+	/* on failure mailbox_save_begin() cancels, which frees the buffer */
+	return pgp_storage_save_buffer(box, save);
+}
+
+static int pgp_storage_save_continue(struct mail_save_context *ctx)
+{
+	struct mailbox *box = ctx->transaction->box;
+	struct pgp_storage_mailbox *mbox = PGP_STORAGE_CONTEXT(box);
+
+	if (mbox->save.ctx != ctx)
+		return mbox->module_ctx.super.save_continue(ctx);
+	return pgp_storage_save_buffer(box, &mbox->save);
+}
+
+static int pgp_storage_save_finish(struct mail_save_context *ctx)
+{
+	struct mailbox *box = ctx->transaction->box;
+	struct pgp_storage_mailbox *mbox = PGP_STORAGE_CONTEXT(box);
+	struct pgp_storage_user *puser =
+		PGP_STORAGE_USER_CONTEXT(box->storage->user);
+	struct istream *original, *encrypted, *chain_input;
+	struct istream_chain *chain;
+	int ret;
+
+	if (mbox->save.ctx != ctx)
+		return mbox->module_ctx.super.save_finish(ctx);
+
+	/* mailbox_save_finish() has already called save_continue() once more,
+	   so the whole message is buffered. */
+	original = iostream_temp_finish(&mbox->save.temp_output, IO_BLOCK_SIZE);
+	chain_input = mbox->save.chain_input;
+	i_stream_ref(chain_input);
+	chain = mbox->save.chain;
+	pgp_storage_save_free(&mbox->save);
+
+	encrypted = pgp_storage_run_filter(box, puser, original);
+
+	if (encrypted == NULL && puser->failure_mode != PGP_FAILURE_DELIVER) {
 		/* Refuse the save rather than store readable mail. Nothing is
 		   lost either way: a deferred sender retries, a rejected one
 		   gets a bounce. */
@@ -174,16 +314,29 @@ pgp_storage_save_begin(struct mail_save_context *ctx, struct istream *input)
 		mail_storage_set_error(box->storage, MAIL_ERROR_TEMP, reason);
 		e_error(box->storage->user->event,
 			"pgp_storage: %s; refusing the save", reason);
-		if (filtered != NULL)
-			i_stream_unref(&filtered);
+		i_stream_unref(&original);
+		i_stream_unref(&chain_input);
+		mbox->module_ctx.super.save_cancel(ctx);
 		return -1;
 	}
 
-	ret = mbox->module_ctx.super.save_begin(
-		ctx, filtered != NULL ? filtered : input);
-	if (filtered != NULL)
-		i_stream_unref(&filtered);
+	ret = pgp_storage_save_stream(mbox, ctx, chain,
+				      encrypted != NULL ? encrypted : original);
+	if (encrypted != NULL)
+		i_stream_unref(&encrypted);
+	i_stream_unref(&original);
+	i_stream_unref(&chain_input);
 	return ret;
+}
+
+static void pgp_storage_save_cancel(struct mail_save_context *ctx)
+{
+	struct pgp_storage_mailbox *mbox =
+		PGP_STORAGE_CONTEXT(ctx->transaction->box);
+
+	if (mbox->save.ctx == ctx)
+		pgp_storage_save_free(&mbox->save);
+	mbox->module_ctx.super.save_cancel(ctx);
 }
 
 static void pgp_storage_mailbox_allocated(struct mailbox *box)
@@ -196,6 +349,9 @@ static void pgp_storage_mailbox_allocated(struct mailbox *box)
 	box->vlast = &mbox->module_ctx.super;
 
 	v->save_begin = pgp_storage_save_begin;
+	v->save_continue = pgp_storage_save_continue;
+	v->save_finish = pgp_storage_save_finish;
+	v->save_cancel = pgp_storage_save_cancel;
 
 	MODULE_CONTEXT_SET(box, pgp_storage_storage_module, mbox);
 }

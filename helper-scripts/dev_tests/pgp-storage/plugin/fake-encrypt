@@ -1,0 +1,8 @@
+#!/bin/sh
+# Stand-in for mailcow-pgp-storage-encrypt: "encrypts" by prepending a header,
+# and fails the way the real filter does (exit 75) for users named fail*.
+case "$PGP_STORAGE_RECIPIENT" in
+  fail*) cat >/dev/null; exit 75 ;;
+esac
+printf 'X-Fake-Encrypted: %s\r\n' "$PGP_STORAGE_RECIPIENT"
+cat

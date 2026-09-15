@@ -198,9 +198,10 @@ while ($row = array_shift($pgp_nospam)) {
 <?php
   }
 ?>
-    apply "default" {
-      want_spam = yes;
-    }
+    # Outside apply: rspamd turns only a top-level want_spam into a whitelist
+    # that skips the scan. Inside apply it is ignored and the message is
+    # scanned as usual.
+    want_spam = yes;
   }
 <?php
 }
