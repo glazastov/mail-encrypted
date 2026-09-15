@@ -54,6 +54,27 @@ check('storing exactly the quota fits', quota_lock_exceeds(10 * $mib, 10 * $mib)
 check('an unlimited quota is never exceeded', quota_lock_exceeds(500 * $mib, 0), false);
 check('values read from the database as strings', quota_lock_exceeds('11', '10'), true);
 
+// when a mailbox edit locks
+check('edit: lowering the quota locks', quota_lock_edit_locks(20 * $mib, 10 * $mib, '1', 1), true);
+check('edit: a first limit on an unlimited mailbox locks', quota_lock_edit_locks(0, 10 * $mib, '1', 1), true);
+check('edit: keeping the quota and the status does not', quota_lock_edit_locks(10 * $mib, 10 * $mib, '1', 1), false);
+check('edit: raising the quota does not', quota_lock_edit_locks(10 * $mib, 20 * $mib, '1', 1), false);
+check('edit: removing the limit does not', quota_lock_edit_locks(10 * $mib, 0, '1', 1), false);
+check('edit: unfreezing (0 to 1) locks', quota_lock_edit_locks(10 * $mib, 10 * $mib, '0', 1), true);
+check('edit: reactivating a deactivated lock (3 to 0 to 1) locks', quota_lock_edit_locks(10 * $mib, 10 * $mib, 0, 1), true);
+check('edit: lifting a lock by hand (3 to 1) locks again', quota_lock_edit_locks(10 * $mib, 10 * $mib, '3', 1), true);
+check('edit: allowing login again (2 to 1) locks', quota_lock_edit_locks(10 * $mib, 10 * $mib, '2', 1), true);
+check('edit: deactivating does not', quota_lock_edit_locks(10 * $mib, 10 * $mib, '1', 0), false);
+check('edit: disabling login does not', quota_lock_edit_locks(10 * $mib, 10 * $mib, '1', 2), false);
+
+// making a mailbox active: a frozen one storing too much is locked on the way back
+$pdo->rows = array(
+  array('username' => 'fabi@empresa.com', 'active' => 1, 'quota' => 10 * $mib, 'quota_lock_from' => null, 'bytes' => 15 * $mib),
+);
+$result = quota_lock_sync(array('fabi@empresa.com'), quota_lock_edit_locks(10 * $mib, 10 * $mib, '0', 1));
+check('an unfrozen mailbox above its quota comes back locked', $result['locked'], array('fabi@empresa.com'));
+$pdo->queries = array();
+
 // lowering a quota: the active mailbox above it is locked, the one within is not
 $pdo->rows = array(
   array('username' => 'ana@empresa.com', 'active' => '1', 'quota' => 10 * $mib, 'quota_lock_from' => null, 'bytes' => 12 * $mib),
