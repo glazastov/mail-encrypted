@@ -1,0 +1,7 @@
+# user:password:uid:gid::home::userdb fields, as mailcow's user_query returns them
+defer:{PLAIN}pw:5000:5000::/var/vmail/defer::userdb_pgp_storage_encrypt=1 userdb_pgp_failure_mode=defer
+deliver:{PLAIN}pw:5000:5000::/var/vmail/deliver::userdb_pgp_storage_encrypt=1 userdb_pgp_failure_mode=deliver
+faildefer:{PLAIN}pw:5000:5000::/var/vmail/faildefer::userdb_pgp_storage_encrypt=1 userdb_pgp_failure_mode=defer
+faildeliver:{PLAIN}pw:5000:5000::/var/vmail/faildeliver::userdb_pgp_storage_encrypt=1 userdb_pgp_failure_mode=deliver
+plain:{PLAIN}pw:5000:5000::/var/vmail/plain::userdb_pgp_storage_encrypt=0
+overquota:{PLAIN}pw:5000:5000::/var/vmail/overquota::userdb_pgp_storage_encrypt=1 userdb_pgp_failure_mode=defer userdb_quota_rule=*:storage=500K
