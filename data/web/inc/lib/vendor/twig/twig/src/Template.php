@@ -13,7 +13,6 @@
 namespace Twig;
 
 use Twig\Error\Error;
-use Twig\Error\LoaderError;
 use Twig\Error\RuntimeError;
 
 /**
@@ -37,6 +36,7 @@ abstract class Template
     protected $parents = [];
     protected $blocks = [];
     protected $traits = [];
+    protected $traitAliases = [];
     protected $extensions = [];
     protected $sandbox;
 
@@ -80,23 +80,24 @@ abstract class Template
             return $this->parent;
         }
 
-        try {
-            if (!$parent = $this->doGetParent($context)) {
-                return false;
-            }
+        // The compiled doGetParent() may evaluate user expressions (filters,
+        // functions, method calls) when the parent name is dynamic. Make sure
+        // the sandbox security check runs first so those expressions cannot
+        // bypass the allow-list when getParent() is reached before the first
+        // ensureSecurityChecked() call on this template (e.g. via
+        // getTemplateForMacro() or yieldBlock() into a pre-warmed instance).
+        $this->ensureSecurityChecked();
 
-            if ($parent instanceof self || $parent instanceof TemplateWrapper) {
-                return $this->parents[$parent->getSourceContext()->getName()] = $parent;
-            }
+        if (!$parent = $this->doGetParent($context)) {
+            return false;
+        }
 
-            if (!isset($this->parents[$parent])) {
-                $this->parents[$parent] = $this->loadTemplate($parent);
-            }
-        } catch (LoaderError $e) {
-            $e->setSourceContext(null);
-            $e->guess();
+        if ($parent instanceof self || $parent instanceof TemplateWrapper) {
+            return $this->parents[$parent->getSourceContext()->getName()] = $parent;
+        }
 
-            throw $e;
+        if (!isset($this->parents[$parent])) {
+            $this->parents[$parent] = $this->load($parent, -1);
         }
 
         return $this->parents[$parent];
@@ -165,7 +166,7 @@ abstract class Template
             if ($this->env->isDebug()) {
                 ob_start();
             } else {
-                ob_start(function () { return ''; });
+                ob_start(static function () { return ''; });
             }
             $this->displayParentBlock($name, $context, $blocks);
 
@@ -200,7 +201,7 @@ abstract class Template
             if ($this->env->isDebug()) {
                 ob_start();
             } else {
-                ob_start(function () { return ''; });
+                ob_start(static function () { return ''; });
             }
             try {
                 $this->displayBlock($name, $context, $blocks, $useBlocks);
@@ -277,21 +278,15 @@ abstract class Template
     /**
      * @param string|TemplateWrapper|array<string|TemplateWrapper> $template
      */
-    protected function loadTemplate($template, $templateName = null, $line = null, $index = null): self|TemplateWrapper
+    protected function load(string|TemplateWrapper|array $template, int $line, ?int $index = null): self
     {
         try {
             if (\is_array($template)) {
-                return $this->env->resolveTemplate($template);
+                return $this->env->resolveTemplate($template)->unwrap();
             }
 
             if ($template instanceof TemplateWrapper) {
-                return $template;
-            }
-
-            if ($template instanceof self) {
-                trigger_deprecation('twig/twig', '3.9', 'Passing a "%s" instance to "%s" is deprecated.', self::class, __METHOD__);
-
-                return $template;
+                return $template->unwrap();
             }
 
             if ($template === $this->getTemplateName()) {
@@ -306,14 +301,14 @@ abstract class Template
             return $this->env->loadTemplate($class, $template, $index);
         } catch (Error $e) {
             if (!$e->getSourceContext()) {
-                $e->setSourceContext($templateName ? new Source('', $templateName) : $this->getSourceContext());
+                $e->setSourceContext($this->getSourceContext());
             }
 
             if ($e->getTemplateLine() > 0) {
                 throw $e;
             }
 
-            if (!$line) {
+            if (-1 === $line) {
                 $e->guess();
             } else {
                 $e->setTemplateLine($line);
@@ -324,7 +319,29 @@ abstract class Template
     }
 
     /**
+     * @param string|TemplateWrapper|array<string|TemplateWrapper> $template
+     *
+     * @deprecated since Twig 3.21 and will be removed in 4.0. Use Template::load() instead.
+     */
+    protected function loadTemplate($template, $templateName = null, ?int $line = null, ?int $index = null): self|TemplateWrapper
+    {
+        trigger_deprecation('twig/twig', '3.21', 'The "%s" method is deprecated.', __METHOD__);
+
+        if (null === $line) {
+            $line = -1;
+        }
+
+        if ($template instanceof self) {
+            return $template;
+        }
+
+        return $this->load($template, $line, $index);
+    }
+
+    /**
      * @internal
+     *
+     * @return $this
      */
     public function unwrap(): self
     {
@@ -358,7 +375,7 @@ abstract class Template
             if ($this->env->isDebug()) {
                 ob_start();
             } else {
-                ob_start(function () { return ''; });
+                ob_start(static function () { return ''; });
             }
             try {
                 $this->display($context);
@@ -390,6 +407,7 @@ abstract class Template
         $blocks = array_merge($this->blocks, $blocks);
 
         try {
+            $this->ensureSecurityChecked();
             yield from $this->doDisplay($context, $blocks);
         } catch (Error $e) {
             if (!$e->getSourceContext()) {
@@ -422,6 +440,8 @@ abstract class Template
         } elseif (isset($this->blocks[$name])) {
             $template = $this->blocks[$name][0];
             $block = $this->blocks[$name][1];
+            // expose this template's own blocks so nested block() calls resolve against them when the block is rendered directly (e.g. block(name, template))
+            $blocks = array_merge($this->blocks, $blocks);
         } else {
             $template = null;
             $block = null;
@@ -434,6 +454,7 @@ abstract class Template
 
         if (null !== $template) {
             try {
+                $template->ensureSecurityChecked();
                 yield from $template->$block($context, $blocks);
             } catch (Error $e) {
                 if (!$e->getSourceContext()) {
@@ -477,12 +498,54 @@ abstract class Template
     public function yieldParentBlock($name, array $context, array $blocks = []): iterable
     {
         if (isset($this->traits[$name])) {
-            yield from $this->traits[$name][0]->yieldBlock($name, $context, $blocks, false);
+            yield from $this->traits[$name][0]->yieldBlock($this->traitAliases[$name] ?? $name, $context, $blocks, false);
         } elseif ($parent = $this->getParent($context)) {
             yield from $parent->unwrap()->yieldBlock($name, $context, $blocks, false);
         } else {
             throw new RuntimeError(\sprintf('The template has no parent and no traits defining the "%s" block.', $name), -1, $this->getSourceContext());
         }
+    }
+
+    protected function hasMacro(string $name, array $context): bool
+    {
+        if (method_exists($this, $name)) {
+            return true;
+        }
+
+        if (!$parent = $this->getParent($context)) {
+            return false;
+        }
+
+        return $parent->hasMacro($name, $context);
+    }
+
+    protected function getTemplateForMacro(string $name, array $context, int $line, Source $source): self
+    {
+        if (method_exists($this, $name)) {
+            $this->ensureSecurityChecked();
+
+            return $this;
+        }
+
+        $parent = $this;
+        while ($parent = $parent->getParent($context)) {
+            if (method_exists($parent, $name)) {
+                $parent->ensureSecurityChecked();
+
+                return $parent;
+            }
+        }
+
+        throw new RuntimeError(\sprintf('Macro "%s" is not defined in template "%s".', substr($name, \strlen('macro_')), $this->getTemplateName()), $line, $source);
+    }
+
+    /**
+     * Runs the sandbox security check against the current sandbox state.
+     *
+     * @internal
+     */
+    public function ensureSecurityChecked(): void
+    {
     }
 
     /**
