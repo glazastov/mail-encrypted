@@ -138,7 +138,7 @@
                     <div class="offset-sm-2 col-sm-10">
                       <div class="form-check">
                         <label><input type="checkbox" class="form-check-input" value="1" name="pgp_storage"{% if result.pgp_storage == '1' %} checked{% endif %}{% if mailcow_cc_role != 'admin' %} disabled{% endif %}> {{ lang.edit.pgp_storage }}</label>
-                        <small class="text-muted">{{ lang.edit.pgp_storage_info|raw }}</small>
+                        <small class="text-muted d-block">{{ lang.edit.pgp_storage_info|raw }}</small>
                       </div>
                     </div>
                   </div>
@@ -149,7 +149,7 @@
                       <div class="form-check">
                         {% if not pgp_enforce_locked %}<input type="hidden" value="none" name="pgp_enforce">{% endif %}
                         <label><input type="checkbox" class="form-check-input" value="{{ result.pgp_enforce != 'none' ? result.pgp_enforce : (mailcow_cc_role == 'admin' ? 'admin' : 'domainadmin') }}" name="pgp_enforce"{% if result.pgp_enforce != 'none' %} checked{% endif %}{% if pgp_enforce_locked %} disabled{% endif %}> {{ lang.edit.pgp_enforce }}</label>
-                        <small class="text-muted">{% if pgp_enforce_locked %}{{ lang.edit.pgp_enforce_locked }}{% else %}{{ lang.edit.pgp_enforce_info|raw }}{% endif %}</small>
+                        <small class="text-muted d-block">{% if pgp_enforce_locked %}{{ lang.edit.pgp_enforce_locked }}{% else %}{{ lang.edit.pgp_enforce_info|raw }}{% endif %}</small>
                       </div>
                     </div>
                   </div>
@@ -158,7 +158,7 @@
                       <div class="form-check">
                         {% if not tfa_enforce_locked %}<input type="hidden" value="none" name="tfa_enforce">{% endif %}
                         <label><input type="checkbox" class="form-check-input" value="{{ result.tfa_enforce != 'none' ? result.tfa_enforce : (mailcow_cc_role == 'admin' ? 'admin' : 'domainadmin') }}" name="tfa_enforce"{% if result.tfa_enforce != 'none' %} checked{% endif %}{% if tfa_enforce_locked %} disabled{% endif %}> {{ lang.edit.tfa_enforce }}</label>
-                        <small class="text-muted">{% if tfa_enforce_locked %}{{ lang.edit.tfa_enforce_locked }}{% else %}{{ lang.edit.tfa_enforce_info|raw }}{% endif %}</small>
+                        <small class="text-muted d-block">{% if tfa_enforce_locked %}{{ lang.edit.tfa_enforce_locked }}{% else %}{{ lang.edit.tfa_enforce_info|raw }}{% endif %}</small>
                       </div>
                     </div>
                   </div>

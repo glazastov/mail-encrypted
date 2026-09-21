@@ -22,7 +22,7 @@
             <option value="{{ domain }}"{% if iam_domain == domain %} selected{% endif %}>{{ domain }}{% if domain in iam_configured_domains %} ✓{% endif %}</option>
             {% endfor %}
           </select>
-          <small class="text-muted">{{ lang.admin.iam_domain_info|raw }}</small>
+          <small class="text-muted d-block">{{ lang.admin.iam_domain_info|raw }}</small>
         </div>
       </div>
       <div class="row mb-4">
