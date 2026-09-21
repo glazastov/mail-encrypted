@@ -1,0 +1,112 @@
+{% extends 'base.twig' %}
+
+{% block content %}
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2 fs-5">
+      <span>{{ lang.reports.title }}</span>
+      <div class="d-flex flex-wrap gap-2 ms-auto fs-6">
+        <select id="reports_domain" class="form-select form-select-sm w-auto">
+          <option value="">{{ lang.reports.all_domains }}</option>
+        </select>
+        <select id="reports_days" class="form-select form-select-sm w-auto">
+          <option value="7">{{ lang.reports.last_days|format(7) }}</option>
+          <option value="30" selected>{{ lang.reports.last_days|format(30) }}</option>
+          <option value="90">{{ lang.reports.last_days|format(90) }}</option>
+          <option value="180">{{ lang.reports.last_days|format(180) }}</option>
+          <option value="365">{{ lang.reports.last_days|format(365) }}</option>
+        </select>
+        <button class="btn btn-xs btn-secondary" id="reports_refresh">{{ lang.admin.refresh }}</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dmarc" type="button" role="tab">DMARC</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-tlsrpt" type="button" role="tab">TLS-RPT</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-reports-settings" type="button" role="tab">{{ lang.reports.settings }}</button></li>
+      </ul>
+      <div id="reports_no_mailbox" class="alert alert-info d-none">{{ lang.reports.no_mailbox }}</div>
+      <div class="tab-content">
+
+        <div class="tab-pane fade show active" id="tab-dmarc" role="tabpanel">
+          <div class="row g-3 mb-3" id="dmarc_tiles"></div>
+          <div class="mb-4" style="height: 260px;"><canvas id="dmarc_chart"></canvas></div>
+          <h6>{{ lang.reports.domains }}</h6>
+          <table id="dmarc_domains" class="table table-striped dt-responsive w-100"></table>
+          <h6 class="mt-4">{{ lang.reports.sources }}</h6>
+          <p class="text-muted small">{{ lang.reports.sources_info }}</p>
+          <table id="dmarc_sources" class="table table-striped dt-responsive w-100"></table>
+          <h6 class="mt-4">{{ lang.reports.received_reports }}</h6>
+          <table id="dmarc_reports" class="table table-striped dt-responsive w-100"></table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-tlsrpt" role="tabpanel">
+          <div class="row g-3 mb-3" id="tlsrpt_tiles"></div>
+          <div class="mb-4" style="height: 260px;"><canvas id="tlsrpt_chart"></canvas></div>
+          <h6>{{ lang.reports.domains }}</h6>
+          <table id="tlsrpt_domains" class="table table-striped dt-responsive w-100"></table>
+          <h6 class="mt-4">{{ lang.reports.failures }}</h6>
+          <table id="tlsrpt_failures" class="table table-striped dt-responsive w-100"></table>
+          <h6 class="mt-4">{{ lang.reports.received_reports }}</h6>
+          <table id="tlsrpt_reports" class="table table-striped dt-responsive w-100"></table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-reports-settings" role="tabpanel">
+          <p class="text-muted">{{ lang.reports.settings_info|raw }}</p>
+          <div class="row mb-3">
+            <label class="col-sm-3 col-form-label" for="reports_mailboxes">{{ lang.reports.mailboxes }}</label>
+            <div class="col-sm-9">
+              <select id="reports_mailboxes" class="form-select" multiple size="8"></select>
+              <small class="text-muted">{{ lang.reports.mailboxes_pgp_info }}</small>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <label class="col-sm-3 col-form-label" for="reports_retention">{{ lang.reports.retention }}</label>
+            <div class="col-sm-9">
+              <div class="input-group w-auto" style="max-width: 16rem;">
+                <input type="number" min="0" max="3650" id="reports_retention" class="form-control">
+                <span class="input-group-text">{{ lang.reports.days }}</span>
+              </div>
+              <small class="text-muted">{{ lang.reports.retention_info }}</small>
+            </div>
+          </div>
+          <div class="row mb-4">
+            <div class="offset-sm-3 col-sm-9">
+              <button class="btn btn-sm btn-success" id="reports_save"><i class="bi bi-check-lg"></i> {{ lang.admin.save }}</button>
+            </div>
+          </div>
+          <h6>{{ lang.reports.status }}</h6>
+          <p class="text-muted small" id="reports_last_run"></p>
+          <table class="table table-sm">
+            <thead><tr><th>{{ lang.reports.mailbox }}</th><th>{{ lang.reports.state }}</th><th>{{ lang.reports.aliases }}</th></tr></thead>
+            <tbody id="reports_mailbox_status"></tbody>
+          </table>
+          <h6 class="mt-4">{{ lang.reports.recent_errors }}</h6>
+          <table class="table table-sm">
+            <thead><tr><th>{{ lang.reports.time }}</th><th>{{ lang.reports.mailbox }}</th><th>{{ lang.reports.message }}</th><th>{{ lang.reports.error }}</th></tr></thead>
+            <tbody id="reports_errors"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="reportDetail" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="report_detail_title"></h3>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="report_detail_body"></div>
+      </div>
+    </div>
+  </div>
+
+<script type='text/javascript'>
+  var lang = {{ lang_reports|raw }};
+  var lang_datatables = {{ lang_datatables|raw }};
+  var csrf_token = '{{ csrf_token }}';
+  var pagination_size = Math.trunc('{{ pagination_size }}');
+</script>
+{% endblock %}

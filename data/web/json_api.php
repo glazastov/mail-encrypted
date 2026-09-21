@@ -568,6 +568,33 @@ if (isset($_GET['query'])) {
             }
           break;
 
+          case "reports":
+            // get/reports/{settings|domains}
+            // get/reports/{dmarc|tlsrpt}/<days>/<domain>
+            // get/reports/{dmarc-report|tlsrpt-report}/<id>
+            $filter = array('days' => $extra, 'domain' => $query[4] ?? '');
+            switch ($object) {
+              case "settings":
+                process_get_return(reports('get', 'settings'));
+              break;
+              case "domains":
+                process_get_return(reports('get', 'domains'), false);
+              break;
+              case "dmarc":
+                process_get_return(reports('get', 'dmarc', $filter));
+              break;
+              case "tlsrpt":
+                process_get_return(reports('get', 'tlsrpt', $filter));
+              break;
+              case "dmarc-report":
+                process_get_return(reports('get', 'dmarc_report', array('id' => $extra)));
+              break;
+              case "tlsrpt-report":
+                process_get_return(reports('get', 'tlsrpt_report', array('id' => $extra)));
+              break;
+            }
+          break;
+
           case "mailq":
             switch ($object) {
               case "all":
@@ -1972,6 +1999,9 @@ if (isset($_GET['query'])) {
         break;
         case "mailq":
           process_edit_return(mailq('edit', array_merge(array('qid' => $items), $attr)));
+        break;
+        case "reports-settings":
+          process_edit_return(reports('edit', 'settings', $attr));
         break;
         case "time_limited_alias":
           process_edit_return(mailbox('edit', 'time_limited_alias', array_merge(array('address' => $items), $attr)));

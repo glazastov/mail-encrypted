@@ -2531,6 +2531,16 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
             // own. Refusing here only stops the flag from being set: the key
             // and the other options stay as they are, so turning the domain
             // back on restores exactly what the user had configured.
+            // report_ingest.py cannot read PGP-encrypted mail, so a
+            // DMARC/TLS report mailbox has to stay unencrypted
+            if ($pgp_storage_encrypt && reports_pgp_conflict($username) !== false) {
+              $_SESSION['return'][] = array(
+                'type' => 'danger',
+                'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                'msg' => array('reports_pgp_conflict', htmlspecialchars($username))
+              );
+              continue;
+            }
             if ($pgp_storage_encrypt && !pgp_flag($is_now['domain_pgp_storage'] ?? 1)) {
               $_SESSION['return'][] = array(
                 'type' => 'danger',
@@ -3198,6 +3208,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                   );
                   continue;
                 }
+                // Enforcing PGP would force it onto the DMARC/TLS report mailbox
+                if ($pgp_enforce !== 'none' && ($report_mailbox = reports_pgp_conflict(null, $domain)) !== false) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => array('reports_pgp_conflict', htmlspecialchars($report_mailbox))
+                  );
+                  continue;
+                }
               }
               else {
                 $_SESSION['return'][] = array(
@@ -3276,6 +3295,15 @@ function mailbox($_action, $_type, $_data = null, $_extra = null) {
                     'type' => 'danger',
                     'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
                     'msg' => 'pgp_enforce_requires_storage'
+                  );
+                  continue;
+                }
+                // Enforcing PGP would force it onto the DMARC/TLS report mailbox
+                if ($pgp_enforce !== 'none' && ($report_mailbox = reports_pgp_conflict(null, $domain)) !== false) {
+                  $_SESSION['return'][] = array(
+                    'type' => 'danger',
+                    'log' => array(__FUNCTION__, $_action, $_type, $_data_log, $_attr),
+                    'msg' => array('reports_pgp_conflict', htmlspecialchars($report_mailbox))
                   );
                   continue;
                 }

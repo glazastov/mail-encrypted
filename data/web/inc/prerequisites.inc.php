@@ -296,6 +296,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.pushover.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.quarantine.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.quota_notification.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.ratelimit.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.reports.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.rspamd.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.tls_policy_maps.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.transports.inc.php';
