@@ -57,8 +57,30 @@ if [[ "${ACME_DNS_CHALLENGE}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   ACME_DNS_CHALLENGE=y
 fi
 
+# Obtain the mail server certificate (MAILCOW_HOSTNAME + ADDITIONAL_SAN) used
+# by Postfix and Dovecot. The web subdomains (autodiscover, autoconfig,
+# mta-sts) are switched separately by AUTODISCOVER_SAN.
+if [[ "${ACME_MAIL_CERTS}" =~ ^([nN][oO]|[nN])+$ ]]; then
+  ACME_MAIL_CERTS=n
+else
+  ACME_MAIL_CERTS=y
+fi
+
+# E-mail ACME_ACCOUNT_EMAIL when a certificate cannot be obtained
+if [[ "${ACME_NOTIFY_FAILURES}" =~ ^([nN][oO]|[nN])+$ ]]; then
+  ACME_NOTIFY_FAILURES=n
+else
+  ACME_NOTIFY_FAILURES=y
+fi
+
 if [[ "${SKIP_LETS_ENCRYPT}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   log_f "SKIP_LETS_ENCRYPT=y, skipping Let's Encrypt..."
+  sleep 365d
+  exec $(readlink -f "$0")
+fi
+
+if [[ ${ACME_MAIL_CERTS} == "n" && ${AUTODISCOVER_SAN} != "y" ]]; then
+  log_f "ACME_MAIL_CERTS=n and AUTODISCOVER_SAN=n, no certificates to obtain - skipping Let's Encrypt..."
   sleep 365d
   exec $(readlink -f "$0")
 fi
@@ -113,7 +135,9 @@ fi
 
 if [[ -f ${ACME_BASE}/cert.pem ]] && [[ -f ${ACME_BASE}/key.pem ]] && [[ $(stat -c%s ${ACME_BASE}/cert.pem) != 0 ]]; then
   ISSUER=$(openssl x509 -in ${ACME_BASE}/cert.pem -noout -issuer)
-  if [[ ${ISSUER} != *"Let's Encrypt"* && ${ISSUER} != *"mailcow"* && ${ISSUER} != *"Fake LE Intermediate"* ]]; then
+  # With ACME_MAIL_CERTS=n the server certificate is managed outside of ACME,
+  # so a foreign issuer must not stop the web certificates from renewing
+  if [[ ${ACME_MAIL_CERTS} == "y" && ${ISSUER} != *"Let's Encrypt"* && ${ISSUER} != *"mailcow"* && ${ISSUER} != *"Fake LE Intermediate"* ]]; then
     log_f "Found certificate with issuer other than mailcow snake-oil CA and Let's Encrypt, skipping ACME client..."
     sleep 3650d
     exec $(readlink -f "$0")
@@ -214,7 +238,11 @@ while true; do
   declare -a ADDITIONAL_WC_ARR
   declare -a ADDITIONAL_SAN_ARR
   declare -a VALIDATED_CERTIFICATES
-  IFS=',' read -r -a TMP_ARR <<< "${ADDITIONAL_SAN}"
+  # ADDITIONAL_SAN belongs to the mail server certificate
+  TMP_ARR=()
+  if [[ ${ACME_MAIL_CERTS} == "y" ]]; then
+    IFS=',' read -r -a TMP_ARR <<< "${ADDITIONAL_SAN}"
+  fi
   for i in "${TMP_ARR[@]}" ; do
     if [[ "$i" =~ \.\*$ ]]; then
       ADDITIONAL_WC_ARR+=(${i::-2})
@@ -320,7 +348,8 @@ while true; do
   fi
   fi
 
-  if check_domain ${MAILCOW_HOSTNAME}; then
+  unset VALIDATED_MAILCOW_HOSTNAME
+  if [[ ${ACME_MAIL_CERTS} == "y" ]] && check_domain ${MAILCOW_HOSTNAME}; then
     VALIDATED_MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
   fi
 
@@ -357,7 +386,11 @@ while true; do
   fi
 
   # Unique domains for server certificate
-  if [[ ${ENABLE_SSL_SNI} == "y" ]]; then
+  unset SERVER_SAN_VALIDATED
+  if [[ ${ACME_MAIL_CERTS} == "n" ]]; then
+    # no server certificate, the web subdomains get SNI certificates below
+    :
+  elif [[ ${ENABLE_SSL_SNI} == "y" ]]; then
     # create certificate for server name and fqdn SANs only
     if [[ ${MAILCOW_HOSTNAME_COVERED} == "1" ]]; then
       SERVER_SAN_VALIDATED=($(echo ${ADDITIONAL_VALIDATED_SAN[*]} | xargs -n1 | sort -u | xargs))
@@ -379,6 +412,7 @@ while true; do
     # obtain server certificate if required
     DOMAINS=${SERVER_SAN_VALIDATED[@]} /srv/obtain-certificate.sh rsa
     RETURN="$?"
+    acme_notify_result "${CERT_NAME}" "${RETURN}" "${SERVER_SAN_VALIDATED[*]}"
     if [[ "$RETURN" == "0" ]]; then # 0 = cert created successfully
       CERT_AMOUNT_CHANGED=1
       CERT_CHANGED=1
@@ -398,7 +432,8 @@ while true; do
   fi
 
   # individual certificates for SNI [@]
-  if [[ ${ENABLE_SSL_SNI} == "y" ]]; then
+  # Without the server certificate the web subdomains have nowhere else to go
+  if [[ ${ENABLE_SSL_SNI} == "y" || ${ACME_MAIL_CERTS} == "n" ]]; then
   for VALIDATED_DOMAINS in "${VALIDATED_CONFIG_DOMAINS[@]}"; do
     VALIDATED_DOMAINS_ARR=(${VALIDATED_DOMAINS})
 
@@ -421,6 +456,7 @@ while true; do
       # obtain certificate if required
       DOMAINS=${VALIDATED_DOMAINS_SORTED[@]} /srv/obtain-certificate.sh rsa
       RETURN="$?"
+      acme_notify_result "${CERT_NAME}" "${RETURN}" "${VALIDATED_DOMAINS_SORTED[*]}"
       if [[ "$RETURN" == "0" ]]; then # 0 = cert created successfully
         CERT_AMOUNT_CHANGED=1
         CERT_CHANGED=1
@@ -463,26 +499,33 @@ while true; do
   if [[ "${CERT_CHANGED}" == "1" ]]; then
     rm -f "${ACME_BASE}/force_renew" 2> /dev/null
     RELOAD_LOOP_C=1
-    while [[ "${POSTFIX_CERT_SERIAL}" == "${POSTFIX_CERT_SERIAL_NEW}" ]] || [[ "${DOVECOT_CERT_SERIAL}" == "${DOVECOT_CERT_SERIAL_NEW}" ]] || [[ ${#POSTFIX_CERT_SERIAL_NEW} -ne 36 ]] || [[ ${#DOVECOT_CERT_SERIAL_NEW} -ne 36 ]]; do
-      log_f "Reloading or restarting services... (${RELOAD_LOOP_C})"
-      RELOAD_LOOP_C=$((RELOAD_LOOP_C + 1))
+    # The serial check waits for Postfix and Dovecot to serve a new server
+    # certificate, which never comes when ACME does not manage it
+    if [[ ${ACME_MAIL_CERTS} == "n" ]]; then
+      log_f "Reloading or restarting services..."
       CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
-      log_f "Waiting for containers to settle..."
-      sleep 10
-      until nc -z dovecot 143; do
-        sleep 1
+    else
+      while [[ "${POSTFIX_CERT_SERIAL}" == "${POSTFIX_CERT_SERIAL_NEW}" ]] || [[ "${DOVECOT_CERT_SERIAL}" == "${DOVECOT_CERT_SERIAL_NEW}" ]] || [[ ${#POSTFIX_CERT_SERIAL_NEW} -ne 36 ]] || [[ ${#DOVECOT_CERT_SERIAL_NEW} -ne 36 ]]; do
+        log_f "Reloading or restarting services... (${RELOAD_LOOP_C})"
+        RELOAD_LOOP_C=$((RELOAD_LOOP_C + 1))
+        CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
+        log_f "Waiting for containers to settle..."
+        sleep 10
+        until nc -z dovecot 143; do
+          sleep 1
+        done
+        until nc -z postfix 25; do
+          sleep 1
+        done
+        POSTFIX_CERT_SERIAL_NEW="$(echo | openssl s_client -connect postfix:25 -starttls smtp 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
+        DOVECOT_CERT_SERIAL_NEW="$(echo | openssl s_client -connect dovecot:143 -starttls imap 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
+        if [[ ${RELOAD_LOOP_C} -gt 3 ]]; then
+          log_f "Some services do return old end dates, something went wrong!"
+          ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
+          break;
+        fi
       done
-      until nc -z postfix 25; do
-        sleep 1
-      done
-      POSTFIX_CERT_SERIAL_NEW="$(echo | openssl s_client -connect postfix:25 -starttls smtp 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-      DOVECOT_CERT_SERIAL_NEW="$(echo | openssl s_client -connect dovecot:143 -starttls imap 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-      if [[ ${RELOAD_LOOP_C} -gt 3 ]]; then
-        log_f "Some services do return old end dates, something went wrong!"
-        ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
-        break;
-      fi
-    done
+    fi
   fi
 
   case "$CERT_ERRORS" in

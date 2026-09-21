@@ -66,6 +66,8 @@ adapt_new_options() {
   "CAPTCHA_SECRET_KEY"
   "ACME_RENEW_BEFORE"
   "ACME_CHECK_INTERVAL"
+  "ACME_MAIL_CERTS"
+  "ACME_NOTIFY_FAILURES"
   "PGP_STORAGE_DEBUG"
   "PGP_STORAGE_DEBUG_LOG"
   )
@@ -80,7 +82,7 @@ adapt_new_options() {
 
     case "${option}" in
         AUTODISCOVER_SAN)
-            echo '# Obtain certificates for autodiscover.* and autoconfig.* domains.' >> mailcow.conf
+            echo '# Obtain certificates for the web subdomains autodiscover.*, autoconfig.* and mta-sts.*.' >> mailcow.conf
             echo '# This can be useful to switch off in case you are in a scenario where a reverse proxy already handles those.' >> mailcow.conf
             echo '# There are mixed scenarios where ports 80,443 are occupied and you do not want to share certs' >> mailcow.conf
             echo '# between services. So acme-mailcow obtains for maildomains and all web-things get handled' >> mailcow.conf
@@ -345,6 +347,16 @@ adapt_new_options() {
             echo '# How often the ACME container re-checks the certificates (e.g. 8h, 1d).' >> mailcow.conf
             echo '# Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.' >> mailcow.conf
             echo 'ACME_CHECK_INTERVAL=' >> mailcow.conf
+            ;;
+        ACME_MAIL_CERTS)
+            echo '# Obtain the mail server certificate (MAILCOW_HOSTNAME + ADDITIONAL_SAN) used by Postfix and Dovecot - y/n' >> mailcow.conf
+            echo '# Switch off to manage that certificate yourself; AUTODISCOVER_SAN keeps covering the web subdomains.' >> mailcow.conf
+            echo 'ACME_MAIL_CERTS=y' >> mailcow.conf
+            ;;
+        ACME_NOTIFY_FAILURES)
+            echo '# E-mail ACME_ACCOUNT_EMAIL when a certificate cannot be obtained - y/n' >> mailcow.conf
+            echo '# Sent at most once a day per certificate while it keeps failing, and once more when it renews.' >> mailcow.conf
+            echo 'ACME_NOTIFY_FAILURES=y' >> mailcow.conf
             ;;
         PGP_STORAGE_DEBUG)
             echo '# Log every PGP storage encryption decision - 1 to enable, 0 to disable' >> mailcow.conf

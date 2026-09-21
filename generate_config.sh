@@ -274,12 +274,16 @@ MAILDIR_GC_TIME=7200
 #ADDITIONAL_SAN=imap.*,srv1.example.com
 ADDITIONAL_SAN=
 
-# Obtain certificates for autodiscover.* and autoconfig.* domains.
+# Obtain certificates for the web subdomains autodiscover.*, autoconfig.* and mta-sts.*.
 # This can be useful to switch off in case you are in a scenario where a reverse proxy already handles those.
 # There are mixed scenarios where ports 80,443 are occupied and you do not want to share certs
 # between services. So acme-mailcow obtains for maildomains and all web-things get handled
 # in the reverse proxy.
 AUTODISCOVER_SAN=y
+
+# Obtain the mail server certificate (MAILCOW_HOSTNAME + ADDITIONAL_SAN) used by Postfix and Dovecot - y/n
+# Switch off to manage that certificate yourself; AUTODISCOVER_SAN keeps covering the web subdomains.
+ACME_MAIL_CERTS=y
 
 # Additional server names for mailcow UI
 #
@@ -320,6 +324,10 @@ ACME_RENEW_BEFORE=
 # How often the ACME container re-checks the certificates (e.g. 8h, 1d).
 # Leave empty for the default: 1d, or 8h when ACME_PROFILE=shortlived.
 ACME_CHECK_INTERVAL=
+
+# E-mail ACME_ACCOUNT_EMAIL when a certificate cannot be obtained - y/n
+# Sent at most once a day per certificate while it keeps failing, and once more when it renews.
+ACME_NOTIFY_FAILURES=y
 
 # Captcha on the login and password reset forms.
 # Providers: hcaptcha, recaptcha, turnstile. Leave empty to disable.

@@ -176,6 +176,8 @@ case "$SUCCESS" in
     ;;
   *)
     log_f "Failed to obtain certificate ${CERT} for domains '${CERT_DOMAINS[*]}' via DNS challenge"
+    # acme.sh quotes the error in the failure notification
+    printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-error-${CERT_DOMAIN}
     redis-cli -h redis -a ${REDISPASS} --no-auth-warning SET ACME_FAIL_TIME "$(date +%s)"
     rm -f ${TMP_CERT} ${TMP_FULLCHAIN}
     exit 100${SUCCESS}
