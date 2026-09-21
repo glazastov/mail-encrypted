@@ -1,7 +1,7 @@
 services:
 
     unbound-mailcow:
-      image: ghcr.io/mailcow/unbound:1.25.1-1
+      image: ghcr.io/mailcow/unbound:1.26.1-1
       environment:
         - TZ=${TZ}
         - SKIP_UNBOUND_HEALTHCHECK=${SKIP_UNBOUND_HEALTHCHECK:-n}
@@ -42,7 +42,7 @@ services:
             - mysql
 
     redis-mailcow:
-      image: redis:7.4.10-alpine
+      image: redis:7.4.11-alpine
       entrypoint: ["/bin/sh","/redis-conf.sh"]
       volumes:
         - redis-vol-1:/data/
@@ -207,7 +207,7 @@ services:
             - phpfpm
 
     sogo-mailcow:
-      image: ghcr.io/mailcow/sogo:5.12.10-1
+      image: ghcr.io/mailcow/sogo:5.12.11-1
       environment:
         - DBNAME=${DBNAME}
         - DBUSER=${DBUSER}
@@ -333,6 +333,9 @@ services:
         ofelia.job-exec.dovecot_trim_logs.command: "/bin/bash -c \"[[ $${MASTER} == y ]] && /usr/local/bin/gosu vmail /usr/local/bin/trim_logs.sh || exit 0\""
         ofelia.job-exec.dovecot_quarantine.schedule: "0 */20 * * * *"
         ofelia.job-exec.dovecot_quarantine.command: "/bin/bash -c \"[[ $${MASTER} == y ]] && /usr/local/bin/gosu vmail /usr/local/bin/quarantine_notify.py || exit 0\""
+        ofelia.job-exec.dovecot_report_ingest.schedule: "0 */15 * * * *"
+        ofelia.job-exec.dovecot_report_ingest.no-overlap: "true"
+        ofelia.job-exec.dovecot_report_ingest.command: "/bin/bash -c \"[[ $${MASTER} == y ]] && /usr/local/bin/gosu vmail /usr/local/bin/report_ingest.py || exit 0\""
         ofelia.job-exec.dovecot_clean_q_aged.schedule: "0 0 0 * * *"
         ofelia.job-exec.dovecot_clean_q_aged.command: "/bin/bash -c \"[[ $${MASTER} == y ]] && /usr/local/bin/gosu vmail /usr/local/bin/clean_q_aged.sh || exit 0\""
         ofelia.job-exec.dovecot_maildir_gc.schedule: "0 */30 * * * *"
@@ -400,7 +403,7 @@ services:
             - postfix
 
     postfix-tlspol-mailcow:
-      image: ghcr.io/mailcow/postfix-tlspol:1.8.23
+      image: ghcr.io/mailcow/postfix-tlspol:1.11.0
       depends_on:
         unbound-mailcow:
           condition: service_healthy
@@ -492,6 +495,8 @@ services:
         - LOG_LINES=${LOG_LINES:-9999}
         - ADDITIONAL_SAN=${ADDITIONAL_SAN}
         - AUTODISCOVER_SAN=${AUTODISCOVER_SAN:-y}
+        - ACME_MAIL_CERTS=${ACME_MAIL_CERTS:-y}
+        - ACME_NOTIFY_FAILURES=${ACME_NOTIFY_FAILURES:-y}
         - MAILCOW_HOSTNAME=${MAILCOW_HOSTNAME}
         - DBNAME=${DBNAME}
         - DBUSER=${DBUSER}

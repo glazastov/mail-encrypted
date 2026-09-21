@@ -4,7 +4,7 @@ function init_db_schema()
   try {
     global $pdo;
 
-    $db_version = "06092026_1200";
+    $db_version = "21092026_1400";
 
     $stmt = $pdo->query("SHOW TABLES LIKE 'versions'");
     $num_results = count($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -502,6 +502,151 @@ function init_db_schema()
         ),
         "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
       ),
+      // DMARC aggregate (rua) and SMTP TLS (TLS-RPT) reports, parsed from the
+      // report mailboxes by report_ingest.py in dovecot-mailcow
+      "dmarc_reports" => array(
+        "cols" => array(
+          "id" => "INT NOT NULL AUTO_INCREMENT",
+          "org_name" => "VARCHAR(191) NOT NULL",
+          "email" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "report_id" => "VARCHAR(191) NOT NULL",
+          "domain" => "VARCHAR(255) NOT NULL",
+          "date_begin" => "DATETIME(0) NOT NULL",
+          "date_end" => "DATETIME(0) NOT NULL",
+          "policy_adkim" => "VARCHAR(8) NOT NULL DEFAULT ''",
+          "policy_aspf" => "VARCHAR(8) NOT NULL DEFAULT ''",
+          "policy_p" => "VARCHAR(16) NOT NULL DEFAULT ''",
+          "policy_sp" => "VARCHAR(16) NOT NULL DEFAULT ''",
+          "policy_pct" => "INT DEFAULT NULL",
+          "mailbox" => "VARCHAR(255) NOT NULL",
+          "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)"
+        ),
+        "keys" => array(
+          "primary" => array(
+            "" => array("id")
+          ),
+          "unique" => array(
+            "org_report_domain" => array("org_name", "report_id", "domain")
+          ),
+          "key" => array(
+            "date_end" => array("date_end"),
+            "domain" => array("domain")
+          )
+        ),
+        "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
+      ),
+      "dmarc_records" => array(
+        "cols" => array(
+          "id" => "INT NOT NULL AUTO_INCREMENT",
+          "report" => "INT NOT NULL",
+          "source_ip" => "VARCHAR(45) NOT NULL",
+          "count" => "INT NOT NULL DEFAULT '0'",
+          "disposition" => "VARCHAR(16) NOT NULL DEFAULT ''",
+          "dkim_eval" => "VARCHAR(16) NOT NULL DEFAULT ''",
+          "spf_eval" => "VARCHAR(16) NOT NULL DEFAULT ''",
+          "reason" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "header_from" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "envelope_from" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "auth_results" => "TEXT"
+        ),
+        "keys" => array(
+          "primary" => array(
+            "" => array("id")
+          ),
+          "fkey" => array(
+            "fk_dmarc_records_report" => array(
+              "col" => "report",
+              "ref" => "dmarc_reports.id",
+              "delete" => "CASCADE",
+              "update" => "NO ACTION"
+            )
+          ),
+          "key" => array(
+            "source_ip" => array("source_ip")
+          )
+        ),
+        "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
+      ),
+      "tlsrpt_reports" => array(
+        "cols" => array(
+          "id" => "INT NOT NULL AUTO_INCREMENT",
+          "org_name" => "VARCHAR(191) NOT NULL",
+          "report_id" => "VARCHAR(191) NOT NULL",
+          "contact" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "date_begin" => "DATETIME(0) NOT NULL",
+          "date_end" => "DATETIME(0) NOT NULL",
+          "mailbox" => "VARCHAR(255) NOT NULL",
+          "created" => "DATETIME(0) NOT NULL DEFAULT NOW(0)"
+        ),
+        "keys" => array(
+          "primary" => array(
+            "" => array("id")
+          ),
+          "unique" => array(
+            "org_report" => array("org_name", "report_id")
+          ),
+          "key" => array(
+            "date_end" => array("date_end")
+          )
+        ),
+        "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
+      ),
+      "tlsrpt_policies" => array(
+        "cols" => array(
+          "id" => "INT NOT NULL AUTO_INCREMENT",
+          "report" => "INT NOT NULL",
+          "policy_type" => "VARCHAR(32) NOT NULL DEFAULT ''",
+          "policy_domain" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "policy_string" => "TEXT",
+          "mx_host" => "TEXT",
+          "success" => "INT NOT NULL DEFAULT '0'",
+          "failure" => "INT NOT NULL DEFAULT '0'"
+        ),
+        "keys" => array(
+          "primary" => array(
+            "" => array("id")
+          ),
+          "fkey" => array(
+            "fk_tlsrpt_policies_report" => array(
+              "col" => "report",
+              "ref" => "tlsrpt_reports.id",
+              "delete" => "CASCADE",
+              "update" => "NO ACTION"
+            )
+          ),
+          "key" => array(
+            "policy_domain" => array("policy_domain")
+          )
+        ),
+        "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
+      ),
+      "tlsrpt_failures" => array(
+        "cols" => array(
+          "id" => "INT NOT NULL AUTO_INCREMENT",
+          "policy" => "INT NOT NULL",
+          "result_type" => "VARCHAR(64) NOT NULL DEFAULT ''",
+          "sending_mta_ip" => "VARCHAR(45) NOT NULL DEFAULT ''",
+          "receiving_mx_hostname" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "receiving_ip" => "VARCHAR(45) NOT NULL DEFAULT ''",
+          "failed_sessions" => "INT NOT NULL DEFAULT '0'",
+          "failure_reason_code" => "VARCHAR(255) NOT NULL DEFAULT ''",
+          "additional_info" => "TEXT"
+        ),
+        "keys" => array(
+          "primary" => array(
+            "" => array("id")
+          ),
+          "fkey" => array(
+            "fk_tlsrpt_failures_policy" => array(
+              "col" => "policy",
+              "ref" => "tlsrpt_policies.id",
+              "delete" => "CASCADE",
+              "update" => "NO ACTION"
+            )
+          )
+        ),
+        "attr" => "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC"
+      ),
       "user_acl" => array(
         "cols" => array(
           "username" => "VARCHAR(255) NOT NULL",
@@ -731,7 +876,8 @@ function init_db_schema()
           "alias_domains" => "TINYINT(1) NOT NULL DEFAULT '0'",
           "mailbox_relayhost" => "TINYINT(1) NOT NULL DEFAULT '1'",
           "domain_relayhost" => "TINYINT(1) NOT NULL DEFAULT '1'",
-          "domain_desc" => "TINYINT(1) NOT NULL DEFAULT '0'"
+          "domain_desc" => "TINYINT(1) NOT NULL DEFAULT '0'",
+          "alias_external_goto" => "TINYINT(1) NOT NULL DEFAULT '1'"
         ),
         "keys" => array(
           "primary" => array(

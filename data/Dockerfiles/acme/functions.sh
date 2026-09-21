@@ -196,6 +196,12 @@ is_covered_by_wildcard() {
     return 1
   fi
 
+  # ADDITIONAL_SAN wildcards live in the mail server certificate, which is
+  # not issued with ACME_MAIL_CERTS=n, so they cover nothing
+  if [[ ${ACME_MAIL_CERTS} == "n" ]]; then
+    return 1
+  fi
+
   # Extract parent domain (e.g., mail.example.com -> example.com)
   local PARENT_DOMAIN=$(echo ${DOMAIN} | cut -d. -f2-)
 
@@ -205,4 +211,111 @@ is_covered_by_wildcard() {
   fi
 
   return 1  # Not covered
+}
+
+# Failure notifications go to ACME_ACCOUNT_EMAIL through the internal Postfix,
+# which relays for the mailcow network. A certificate that keeps failing is
+# reported at most once per ACME_NOTIFY_THROTTLE seconds - acme.sh retries
+# every 30 minutes - and once more when it renews again.
+ACME_NOTIFY_THROTTLE=86400
+
+acme_notify_enabled(){
+  [[ ${ACME_NOTIFY_FAILURES} == "y" ]] || return 1
+  [[ -n ${ACME_ACCOUNT_EMAIL} ]] && [[ ${ACME_ACCOUNT_EMAIL} != *@example.com ]]
+}
+
+acme_send_mail(){
+  local SUBJECT="${1}"
+  local BODY="${2}"
+  local MSG
+  MSG=$(mktemp /tmp/acme-notify.XXXXXX)
+  {
+    printf 'From: mailcow ACME <acme@%s>\n' "${MAILCOW_HOSTNAME}"
+    printf 'To: <%s>\n' "${ACME_ACCOUNT_EMAIL}"
+    printf 'Subject: %s\n' "${SUBJECT}"
+    printf 'Date: %s\n' "$(date -R)"
+    printf 'Message-ID: <acme.%s.%s@%s>\n' "$(date +%s)" "${RANDOM}${RANDOM}" "${MAILCOW_HOSTNAME}"
+    printf 'MIME-Version: 1.0\n'
+    printf 'Content-Type: text/plain; charset=UTF-8\n'
+    printf 'Content-Transfer-Encoding: 8bit\n'
+    printf 'Auto-Submitted: auto-generated\n'
+    printf '\n%s\n' "${BODY}"
+  } > "${MSG}"
+  # --crlf turns the LF line endings into the CRLF that SMTP requires
+  curl --silent --show-error --max-time 30 --crlf \
+    --url "smtp://postfix:25/${MAILCOW_HOSTNAME}" \
+    --mail-from "acme@${MAILCOW_HOSTNAME}" \
+    --mail-rcpt "${ACME_ACCOUNT_EMAIL}" \
+    --upload-file "${MSG}"
+  local RC=$?
+  rm -f "${MSG}"
+  if [[ ${RC} -eq 0 ]]; then
+    log_f "Sent notification to ${ACME_ACCOUNT_EMAIL}: ${SUBJECT}"
+  else
+    log_f "Could not send notification to ${ACME_ACCOUNT_EMAIL} (curl exit code ${RC})"
+  fi
+  return ${RC}
+}
+
+# Report the outcome of one obtain-certificate run.
+# Usage: acme_notify_result CERT_NAME RETURN "DOMAINS"
+# RETURN is the exit code of obtain-certificate.sh; its error output, if any,
+# is read from /tmp/acme-error-CERT_NAME.
+acme_notify_result(){
+  local CERT_NAME="${1}"
+  local RETURN="${2}"
+  local DOMAINS="${3}"
+  local ERROR_FILE="/tmp/acme-error-${CERT_NAME}"
+  local FAILING_KEY="ACME_NOTIFY_FAILING_${CERT_NAME}"
+  local THROTTLE_KEY="ACME_NOTIFY_THROTTLE_${CERT_NAME}"
+
+  if ! acme_notify_enabled; then
+    rm -f "${ERROR_FILE}"
+    return 0
+  fi
+
+  case "${RETURN}" in
+    0|1) # created or renewed
+      if [[ "$(${REDIS_CMDLINE} DEL "${FAILING_KEY}")" == "1" ]]; then
+        ${REDIS_CMDLINE} DEL "${THROTTLE_KEY}" > /dev/null
+        acme_send_mail "[${MAILCOW_HOSTNAME}] Certificate ${CERT_NAME} renewed" \
+"The certificate ${CERT_NAME} on ${MAILCOW_HOSTNAME} was renewed successfully after earlier failures.
+
+Domains: ${DOMAINS}
+Valid until: $(openssl x509 -enddate -noout -in "${ACME_BASE}/${CERT_NAME}/cert.pem" 2>/dev/null | cut -d= -f2)"
+      fi
+      ;;
+    2) # not due for renewal
+      ;;
+    *)
+      ${REDIS_CMDLINE} SET "${FAILING_KEY}" "$(date +%s)" NX > /dev/null
+      if [[ "$(${REDIS_CMDLINE} SET "${THROTTLE_KEY}" 1 NX EX ${ACME_NOTIFY_THROTTLE})" == "OK" ]]; then
+        local SINCE EXPIRY DETAIL OUTPUT
+        SINCE=$(${REDIS_CMDLINE} GET "${FAILING_KEY}")
+        EXPIRY=$(openssl x509 -enddate -noout -in "${ACME_BASE}/${CERT_NAME}/cert.pem" 2>/dev/null | cut -d= -f2)
+        # acme-tiny prints the CA's reason as 'detail': '...'
+        DETAIL=$(grep -o "'detail': '[^']*'" "${ERROR_FILE}" 2>/dev/null | head -n 1 | cut -d"'" -f4)
+        OUTPUT=$(grep -v '^[[:space:]]*$' "${ERROR_FILE}" 2>/dev/null | tail -n 20)
+        [[ -z ${DETAIL} ]] && DETAIL=$(printf '%s\n' "${OUTPUT}" | tail -n 1)
+        if ! acme_send_mail "[${MAILCOW_HOSTNAME}] Certificate ${CERT_NAME} could not be renewed" \
+"acme-mailcow on ${MAILCOW_HOSTNAME} could not obtain the certificate ${CERT_NAME}.
+
+Domains: ${DOMAINS}
+Current certificate expires: ${EXPIRY:-no certificate issued yet}
+Failing since: $(date -d "@${SINCE:-$(date +%s)}")
+Error: ${DETAIL:-unknown, see the acme-mailcow logs (exit code ${RETURN})}
+
+acme-mailcow keeps retrying every 30 minutes. While it keeps failing, this
+notice is repeated at most once every $((ACME_NOTIFY_THROTTLE / 3600)) hours, and you get another
+e-mail once the certificate renews.
+
+Last output of the ACME client:
+${OUTPUT:-(none)}"; then
+          # let the next attempt retry the notification
+          ${REDIS_CMDLINE} DEL "${THROTTLE_KEY}" > /dev/null
+        fi
+      fi
+      ;;
+  esac
+  rm -f "${ERROR_FILE}"
 }

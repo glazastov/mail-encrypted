@@ -136,6 +136,8 @@ case "$SUCCESS" in
     ;;
   *) # non-zero is non-fun
     log_f "Failed to obtain certificate ${CERT} for domains '${CERT_DOMAINS[*]}'"
+    # acme.sh quotes the error in the failure notification
+    printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-error-${CERT_DOMAIN}
     redis-cli -h redis -a ${REDISPASS} --no-auth-warning SET ACME_FAIL_TIME "$(date +%s)"
     exit 100${SUCCESS}
     ;;
