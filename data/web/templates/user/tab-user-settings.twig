@@ -83,10 +83,12 @@
               </div>
               <div class="mt-3">
                 <label class="form-label mb-1" for="pgp_failure_mode">{{ lang.user.pgp_failure_mode }}:</label>
-                <select class="form-select form-select-sm" id="pgp_failure_mode" name="pgp_failure_mode" style="max-width:32rem"{% if not pgp_domain_allowed %} disabled{% endif %}>
-                  <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>{{ lang.user.pgp_failure_deliver }}</option>
-                  <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>{{ lang.user.pgp_failure_defer }}</option>
-                </select>
+                <div style="max-width:32rem">
+                  <select id="pgp_failure_mode" name="pgp_failure_mode" data-width="100%"{% if not pgp_domain_allowed %} disabled{% endif %}>
+                    <option value="deliver"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'deliver' %} selected{% endif %}>{{ lang.user.pgp_failure_deliver }}</option>
+                    <option value="defer"{% if mailboxdata.attributes.pgp_failure_mode|default('deliver') == 'defer' %} selected{% endif %}>{{ lang.user.pgp_failure_defer }}</option>
+                  </select>
+                </div>
                 <div class="text-muted small mt-1">{{ lang.user.pgp_failure_mode_help }}</div>
               </div>
             </div>

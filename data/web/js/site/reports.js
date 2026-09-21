@@ -74,7 +74,7 @@ jQuery(function($){
       (domains || []).forEach(function(domain) {
         $('#reports_domain').append($('<option/>').val(domain).text(domain));
       });
-      $('#reports_domain').val(current);
+      $('#reports_domain').val(current).selectpicker('refresh');
     }, 'json');
   }
 
@@ -168,6 +168,7 @@ jQuery(function($){
         var label = c.username + (c.pgp ? ' (' + lang.pgp_blocked + ')' : '');
         select.append($('<option/>').val(c.username).text(label).prop('disabled', c.pgp && !c.selected).prop('selected', c.selected));
       });
+      select.selectpicker('refresh');
       $('#reports_retention').val(data.retention_days);
       $('#reports_no_mailbox').toggleClass('d-none', (data.mailboxes || []).length > 0);
 
