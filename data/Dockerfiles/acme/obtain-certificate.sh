@@ -34,6 +34,10 @@ elif [[ "${ACME_DNS_CHALLENGE}" == "auto" ]]; then
   done
   log_f "No domain of certificate ${CERT_DOMAIN} is managed by ${ACME_DNS_PROVIDER} - using the HTTP-01 challenge"
 fi
+# The certificates page reports the challenge each domain was validated with
+CHALLENGE_FILE=/tmp/acme-challenge-${CERT_DOMAIN}
+printf '%s=http\n' "${CERT_DOMAINS[@]}" > ${CHALLENGE_FILE}
+
 DOMAINS_FILE=${ACME_BASE}/${CERT_DOMAIN}/domains
 CERT=${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}cert.pem
 SHARED_KEY=${ACME_BASE}/acme/${PREFIX}key.pem  # must already exist
@@ -124,6 +128,8 @@ ACME_RESPONSE=$(acme-tiny ${DIRECTORY_URL} ${PROFILE_ARG} \
 SUCCESS="$?"
 ACME_RESPONSE_B64=$(echo "${ACME_RESPONSE}" | openssl enc -e -A -base64)
 log_f "${ACME_RESPONSE_B64}" redis_only b64
+# The certificates page shows the output of the last run, successful or not
+printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-output-${CERT_DOMAIN}
 case "$SUCCESS" in
   0) # cert requested
     log_f "Deploying certificate ${CERT}..."

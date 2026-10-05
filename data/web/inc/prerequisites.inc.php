@@ -279,6 +279,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.acl.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.address_rewriting.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.admin.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.app_passwd.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.certificates.inc.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.customize.inc.php';
 $CAPTCHA = captcha_settings();
 $GLOBALS['CAPTCHA'] = $CAPTCHA;
