@@ -23,6 +23,16 @@ fi
 
 if [[ "${ACME_DNS_CHALLENGE}" == "y" ]]; then
   exec /srv/obtain-certificate-dns.sh "$@"
+elif [[ "${ACME_DNS_CHALLENGE}" == "auto" ]]; then
+  # Hand the certificate to acme.sh as soon as one of its domains is validated
+  # over DNS-01 - it is the client that can mix both challenges in one order.
+  # Certificates without a single such domain stay on acme-tiny.
+  for CHALLENGE_DOMAIN in "${CERT_DOMAINS[@]}"; do
+    if [[ "$(domain_challenge_type "${CHALLENGE_DOMAIN}")" == "dns" ]]; then
+      exec /srv/obtain-certificate-dns.sh "$@"
+    fi
+  done
+  log_f "No domain of certificate ${CERT_DOMAIN} is managed by ${ACME_DNS_PROVIDER} - using the HTTP-01 challenge"
 fi
 DOMAINS_FILE=${ACME_BASE}/${CERT_DOMAIN}/domains
 CERT=${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}cert.pem

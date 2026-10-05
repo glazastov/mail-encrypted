@@ -107,6 +107,76 @@ get_ipv6(){
   echo ${IPV6}
 }
 
+# Cache of the DNS provider answers, one line per domain, reset by the ACME
+# client on every loop so that a zone added at the provider is picked up.
+ACME_DNS_MANAGED_CACHE=${ACME_DNS_MANAGED_CACHE:-/tmp/acme-dns-managed.cache}
+ACME_DNS_ZONE_CHECK=${ACME_DNS_ZONE_CHECK:-/srv/dns-zone-check.sh}
+
+# Ask the configured DNS provider's API whether it manages the zone a domain
+# belongs to - the deciding question for ACME_DNS_CHALLENGE=auto.
+# Usage: dns_zone_managed sub.example.com
+# Returns: 0 when the provider manages the zone, 1 when it does not
+dns_zone_managed(){
+  # a wildcard is validated in the zone of its parent
+  local DOMAIN="${1#\*.}"
+  local CACHED REASON RETURN
+
+  if [[ -z ${ACME_DNS_PROVIDER} ]] || [[ ${ACME_DNS_PROVIDER} == "dns_xxx" ]]; then
+    return 1
+  fi
+
+  CACHED=$(awk -F= -v d="${DOMAIN}" '$1 == d { v = $2 } END { print v }' "${ACME_DNS_MANAGED_CACHE}" 2>/dev/null)
+  if [[ ${CACHED} == "1" ]]; then
+    return 0
+  elif [[ ${CACHED} == "0" ]]; then
+    return 1
+  fi
+
+  REASON=$("${ACME_DNS_ZONE_CHECK}" "${DOMAIN}" 2>&1)
+  RETURN=$?
+  [[ -n ${REASON} ]] && log_f "${REASON}"
+  if [[ ${RETURN} -eq 0 ]]; then
+    log_f "${ACME_DNS_PROVIDER} manages the zone of ${DOMAIN} - using the DNS-01 challenge"
+    echo "${DOMAIN}=1" >> "${ACME_DNS_MANAGED_CACHE}"
+    return 0
+  fi
+  log_f "${ACME_DNS_PROVIDER} does not manage the zone of ${DOMAIN} - using the HTTP-01 challenge"
+  echo "${DOMAIN}=0" >> "${ACME_DNS_MANAGED_CACHE}"
+  return 1
+}
+
+# The challenge type used for a single domain: dns or http
+# Usage: domain_challenge_type sub.example.com
+domain_challenge_type(){
+  case "${ACME_DNS_CHALLENGE}" in
+    y)
+      echo dns
+      ;;
+    auto)
+      # the log of the first, uncached lookup must not end up in the answer
+      if dns_zone_managed "${1}" 1>&2; then
+        echo dns
+      else
+        echo http
+      fi
+      ;;
+    *)
+      echo http
+      ;;
+  esac
+}
+
+# acme.sh writes HTTP-01 tokens to <webroot>/.well-known/acme-challenge, while
+# nginx serves that path from /var/www/acme, where acme-tiny writes them. The
+# symlink lets both clients share the one challenge directory.
+acme_prepare_webroot(){
+  ACME_WEBROOT=${ACME_WEBROOT:-/var/www/acme-webroot}
+  if [[ ! -d ${ACME_WEBROOT}/.well-known/acme-challenge ]]; then
+    mkdir -p ${ACME_WEBROOT}/.well-known
+    ln -sfn /var/www/acme ${ACME_WEBROOT}/.well-known/acme-challenge
+  fi
+}
+
 check_domain(){
     DOMAIN=$1
     A_DOMAIN=$(dig A ${DOMAIN} +short | tail -n 1)
@@ -126,6 +196,18 @@ check_domain(){
     if [[ ${ACME_DNS_CHALLENGE} == "y" ]]; then
       log_f "ACME_DNS_CHALLENGE=y - skipping IP and HTTP validation for ${DOMAIN}"
       return 0
+    fi
+    if [[ ${ACME_DNS_CHALLENGE} == "auto" ]]; then
+      if dns_zone_managed "${DOMAIN}"; then
+        log_f "${DOMAIN} is validated over DNS-01 - skipping IP and HTTP validation"
+        return 0
+      fi
+      # A wildcard cannot be validated over HTTP-01, so without its zone at the
+      # DNS provider there is nothing left to try
+      if [[ ${DOMAIN} == \*.* ]]; then
+        log_f "Skipping wildcard ${DOMAIN}: it requires the DNS-01 challenge"
+        return 1
+      fi
     fi
     # Check if CNAME without v6 enabled target
     if [[ ! -z ${AAAA_DOMAIN} ]] && [[ -z $(echo ${AAAA_DOMAIN} | grep "^\([0-9a-fA-F]\{0,4\}:\)\{1,7\}[0-9a-fA-F]\{0,4\}$") ]]; then
@@ -187,7 +269,7 @@ is_covered_by_wildcard() {
   local DOMAIN=$1
 
   # Only skip if DNS challenge is enabled (wildcards require DNS-01)
-  if [[ ${ACME_DNS_CHALLENGE} != "y" ]]; then
+  if [[ ${ACME_DNS_CHALLENGE} != "y" ]] && [[ ${ACME_DNS_CHALLENGE} != "auto" ]]; then
     return 1
   fi
 
@@ -207,6 +289,12 @@ is_covered_by_wildcard() {
 
   # Check if ADDITIONAL_SAN contains a wildcard for this parent domain
   if [[ "${ADDITIONAL_SAN}" == *"*.${PARENT_DOMAIN}"* ]]; then
+    # In auto mode the wildcard only covers the domain when its zone is at the
+    # DNS provider - otherwise the wildcard itself is dropped and the subdomain
+    # needs its own HTTP-01 validated certificate
+    if [[ ${ACME_DNS_CHALLENGE} == "auto" ]] && ! dns_zone_managed "${PARENT_DOMAIN}"; then
+      return 1
+    fi
     return 0  # Covered by wildcard
   fi
 

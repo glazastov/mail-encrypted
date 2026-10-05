@@ -53,9 +53,28 @@ if [[ "${ENABLE_SSL_SNI}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   ENABLE_SSL_SNI=y
 fi
 
-if [[ "${ACME_DNS_CHALLENGE}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-  ACME_DNS_CHALLENGE=y
+# Which challenge validates a domain:
+#   n    - HTTP-01 for every domain (acme-tiny)
+#   y    - DNS-01 for every domain (acme.sh)
+#   auto - DNS-01 for the domains whose zone the DNS provider's API manages,
+#          HTTP-01 for all others
+case "${ACME_DNS_CHALLENGE,,}" in
+  y|yes)
+    ACME_DNS_CHALLENGE=y
+    ;;
+  auto)
+    ACME_DNS_CHALLENGE=auto
+    ;;
+  *)
+    ACME_DNS_CHALLENGE=n
+    ;;
+esac
+if [[ ${ACME_DNS_CHALLENGE} != "n" ]] && [[ -z ${ACME_DNS_PROVIDER} || ${ACME_DNS_PROVIDER} == "dns_xxx" ]]; then
+  log_f "ACME_DNS_CHALLENGE=${ACME_DNS_CHALLENGE} needs ACME_DNS_PROVIDER to be set - falling back to the HTTP-01 challenge"
+  ACME_DNS_CHALLENGE=n
 fi
+# obtain-certificate.sh and its children read the normalized value
+export ACME_DNS_CHALLENGE
 
 # Obtain the mail server certificate (MAILCOW_HOSTNAME + ADDITIONAL_SAN) used
 # by Postfix and Dovecot. The web subdomains (autodiscover, autoconfig,
@@ -218,6 +237,10 @@ while true; do
     fi
     EXISTING_CERTS+=("$(basename ${cert_dir})")
   done
+
+  # Ask the DNS provider about a zone once per loop, so that a zone added or
+  # removed there is picked up on the next run
+  rm -f /tmp/acme-dns-managed.cache
 
   # Cleaning up and init validation arrays
   unset SQL_DOMAIN_ARR
