@@ -94,12 +94,14 @@ fi
 
 if [[ "${SKIP_LETS_ENCRYPT}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   log_f "SKIP_LETS_ENCRYPT=y, skipping Let's Encrypt..."
+  ${REDIS_CMDLINE} DEL ACME_FORCE_RENEW > /dev/null
   sleep 365d
   exec $(readlink -f "$0")
 fi
 
 if [[ ${ACME_MAIL_CERTS} == "n" && ${AUTODISCOVER_SAN} != "y" ]]; then
   log_f "ACME_MAIL_CERTS=n and AUTODISCOVER_SAN=n, no certificates to obtain - skipping Let's Encrypt..."
+  ${REDIS_CMDLINE} DEL ACME_FORCE_RENEW > /dev/null
   sleep 365d
   exec $(readlink -f "$0")
 fi
@@ -131,6 +133,8 @@ SSL_EXAMPLE=/var/lib/ssl-example
 
 mkdir -p ${ACME_BASE}/acme
 
+acme_check_force_renew
+
 # Migrate
 [[ -f ${ACME_BASE}/acme/private/privkey.pem ]] && mv ${ACME_BASE}/acme/private/privkey.pem ${ACME_BASE}/acme/key.pem
 [[ -f ${ACME_BASE}/acme/private/account.key ]] && mv ${ACME_BASE}/acme/private/account.key ${ACME_BASE}/acme/account.pem
@@ -158,6 +162,7 @@ if [[ -f ${ACME_BASE}/cert.pem ]] && [[ -f ${ACME_BASE}/key.pem ]] && [[ $(stat 
   # so a foreign issuer must not stop the web certificates from renewing
   if [[ ${ACME_MAIL_CERTS} == "y" && ${ISSUER} != *"Let's Encrypt"* && ${ISSUER} != *"mailcow"* && ${ISSUER} != *"Fake LE Intermediate"* ]]; then
     log_f "Found certificate with issuer other than mailcow snake-oil CA and Let's Encrypt, skipping ACME client..."
+    ${REDIS_CMDLINE} DEL ACME_FORCE_RENEW > /dev/null
     sleep 3650d
     exec $(readlink -f "$0")
   fi
@@ -241,6 +246,11 @@ while true; do
   # Ask the DNS provider about a zone once per loop, so that a zone added or
   # removed there is picked up on the next run
   rm -f /tmp/acme-dns-managed.cache
+
+  # The certificates page reads this record, which is published at the end of
+  # the loop by acme_status_publish
+  acme_status_reset
+  acme_status_config
 
   # Cleaning up and init validation arrays
   unset SQL_DOMAIN_ARR
@@ -435,6 +445,8 @@ while true; do
     # obtain server certificate if required
     DOMAINS=${SERVER_SAN_VALIDATED[@]} /srv/obtain-certificate.sh rsa
     RETURN="$?"
+    # before acme_notify_result, which consumes the error output of the client
+    acme_status_cert "${CERT_NAME}" "${RETURN}" "${SERVER_SAN_VALIDATED[*]}"
     acme_notify_result "${CERT_NAME}" "${RETURN}" "${SERVER_SAN_VALIDATED[*]}"
     if [[ "$RETURN" == "0" ]]; then # 0 = cert created successfully
       CERT_AMOUNT_CHANGED=1
@@ -479,6 +491,8 @@ while true; do
       # obtain certificate if required
       DOMAINS=${VALIDATED_DOMAINS_SORTED[@]} /srv/obtain-certificate.sh rsa
       RETURN="$?"
+      # before acme_notify_result, which consumes the error output of the client
+      acme_status_cert "${CERT_NAME}" "${RETURN}" "${VALIDATED_DOMAINS_SORTED[*]}"
       acme_notify_result "${CERT_NAME}" "${RETURN}" "${VALIDATED_DOMAINS_SORTED[*]}"
       if [[ "$RETURN" == "0" ]]; then # 0 = cert created successfully
         CERT_AMOUNT_CHANGED=1
@@ -498,6 +512,7 @@ while true; do
     log_f "Cannot validate any hostnames, skipping Let's Encrypt for 1 hour."
     log_f "Use SKIP_LETS_ENCRYPT=y in mailcow.conf to skip it permanently."
     ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
+    acme_status_publish 1
     sleep 1h
     exec $(readlink -f "$0")
   fi
@@ -550,6 +565,8 @@ while true; do
       done
     fi
   fi
+
+  acme_status_publish ${CERT_ERRORS}
 
   case "$CERT_ERRORS" in
     0) # all successful

@@ -181,6 +181,9 @@ acme_prepare_webroot(){
 
 check_domain(){
     DOMAIN=$1
+    # log_reason remembers why a domain is dropped, so that the certificates
+    # page can tell "no certificate" apart from "no certificate, because ..."
+    ACME_SKIP_REASON=
     A_DOMAIN=$(dig A ${DOMAIN} +short | tail -n 1)
     AAAA_DOMAIN=$(dig AAAA ${DOMAIN} +short | tail -n 1)
     # Hard-fail on CAA errors for MAILCOW_HOSTNAME
@@ -190,7 +193,8 @@ check_domain(){
       if [[ ${CAAS[@]} =~ "letsencrypt.org" ]]; then
         log_f "Validated CAA for parent domain ${PARENT_DOMAIN}"
       else
-        log_f "Lets Encrypt disallowed for ${PARENT_DOMAIN} by CAA record"
+        log_reason "Lets Encrypt disallowed for ${PARENT_DOMAIN} by CAA record"
+        acme_status_skip "${DOMAIN}" "${ACME_SKIP_REASON}"
         return 1
       fi
     fi
@@ -207,7 +211,8 @@ check_domain(){
       # A wildcard cannot be validated over HTTP-01, so without its zone at the
       # DNS provider there is nothing left to try
       if [[ ${DOMAIN} == \*.* ]]; then
-        log_f "Skipping wildcard ${DOMAIN}: it requires the DNS-01 challenge"
+        log_reason "Skipping wildcard ${DOMAIN}: it requires the DNS-01 challenge, but ${ACME_DNS_PROVIDER} does not manage its zone"
+        acme_status_skip "${DOMAIN}" "${ACME_SKIP_REASON}"
         return 1
       fi
     fi
@@ -222,10 +227,10 @@ check_domain(){
           log_f "Confirmed AAAA record with IP $(expand ${AAAA_DOMAIN})"
           return 0
         else
-          log_f "Confirmed AAAA record with IP $(expand ${AAAA_DOMAIN}), but HTTP validation failed"
+          log_reason "Confirmed AAAA record with IP $(expand ${AAAA_DOMAIN}), but HTTP validation failed"
         fi
       else
-        log_f "Cannot match your IP $(expand ${IPV6:-"0000:0000:0000:0000:0000:0000:0000:0000"}) against hostname ${DOMAIN} (DNS returned $(expand ${AAAA_DOMAIN}))"
+        log_reason "Cannot match your IP $(expand ${IPV6:-"0000:0000:0000:0000:0000:0000:0000:0000"}) against hostname ${DOMAIN} (DNS returned $(expand ${AAAA_DOMAIN}))"
       fi
     elif [[ ! -z ${A_DOMAIN} ]]; then
       log_f "Found A record for ${DOMAIN}: ${A_DOMAIN}"
@@ -234,14 +239,15 @@ check_domain(){
           log_f "Confirmed A record ${A_DOMAIN}"
           return 0
         else
-          log_f "Confirmed A record with IP ${A_DOMAIN}, but HTTP validation failed"
+          log_reason "Confirmed A record with IP ${A_DOMAIN}, but HTTP validation failed"
         fi
       else
-        log_f "Cannot match your IP ${IPV4} against hostname ${DOMAIN} (DNS returned ${A_DOMAIN})"
+        log_reason "Cannot match your IP ${IPV4} against hostname ${DOMAIN} (DNS returned ${A_DOMAIN})"
       fi
     else
-      log_f "No A or AAAA record found for hostname ${DOMAIN}"
+      log_reason "No A or AAAA record found for hostname ${DOMAIN}"
     fi
+    acme_status_skip "${DOMAIN}" "${ACME_SKIP_REASON}"
     return 1
 }
 
@@ -408,4 +414,309 @@ ${OUTPUT:-(none)}"; then
       ;;
   esac
   rm -f "${ERROR_FILE}"
+}
+
+# ---------------------------------------------------------------------------
+# Status record for the certificates page of the admin UI
+#
+# The page can read a certificate off the disk, but not why a domain was
+# dropped before a request, nor which domain of a multi-domain certificate
+# failed its challenge - only the client sees that. So every loop builds a
+# record in ACME_STATUS_FILE and publishes the whole document to the Redis
+# key ACME_STATUS, which is what the page reads.
+# ---------------------------------------------------------------------------
+ACME_STATUS_FILE=${ACME_STATUS_FILE:-/tmp/acme-status.json}
+
+# Apply a jq filter to the record in place. A broken filter leaves the record
+# untouched: a panel showing stale data beats one showing none.
+acme_status_edit(){
+  local TMP
+  [[ -f ${ACME_STATUS_FILE} ]] || return 0
+  TMP=$(mktemp /tmp/acme-status.XXXXXX)
+  if jq "$@" "${ACME_STATUS_FILE}" > "${TMP}" 2>/dev/null; then
+    mv -f "${TMP}" "${ACME_STATUS_FILE}"
+  else
+    rm -f "${TMP}"
+    return 1
+  fi
+}
+
+acme_status_reset(){
+  jq -n --argjson started "$(date +%s)" \
+    '{started: $started, finished: null, errors: null, config: {}, certificates: [], skipped: []}' \
+    > "${ACME_STATUS_FILE}" 2>/dev/null
+}
+
+# The configuration the loop is running with, so that the page can explain a
+# result instead of only reporting it
+acme_status_config(){
+  acme_status_edit \
+    --arg hostname "${MAILCOW_HOSTNAME}" \
+    --arg challenge "${ACME_DNS_CHALLENGE}" \
+    --arg dns_provider "${ACME_DNS_PROVIDER}" \
+    --arg profile "${ACME_PROFILE}" \
+    --arg check_interval "${ACME_CHECK_INTERVAL}" \
+    --arg additional_san "${ADDITIONAL_SAN}" \
+    --arg mail_certs "${ACME_MAIL_CERTS}" \
+    --arg autodiscover_san "${AUTODISCOVER_SAN:-n}" \
+    --arg sni "${ENABLE_SSL_SNI:-n}" \
+    --arg only_hostname "${ONLY_MAILCOW_HOSTNAME:-n}" \
+    --arg staging "${LE_STAGING:-n}" \
+    --arg directory_url "${DIRECTORY_URL}" \
+    --arg skip_ip_check "${SKIP_IP_CHECK:-n}" \
+    --arg skip_http_verification "${SKIP_HTTP_VERIFICATION:-n}" \
+    --argjson renew_before "${ACME_RENEW_BEFORE:-0}" \
+    '.config = {hostname: $hostname, challenge: $challenge, dns_provider: $dns_provider,
+      profile: $profile, renew_before: $renew_before, check_interval: $check_interval,
+      additional_san: $additional_san, mail_certs: $mail_certs,
+      autodiscover_san: $autodiscover_san, sni: $sni, only_hostname: $only_hostname,
+      staging: $staging, directory_url: $directory_url, skip_ip_check: $skip_ip_check,
+      skip_http_verification: $skip_http_verification}'
+}
+
+# A domain that never made it into a certificate request, with the reason
+# check_domain rejected it
+acme_status_skip(){
+  local DOMAIN="${1}"
+  local REASON="${2}"
+  [[ -z ${DOMAIN} ]] && return 0
+  acme_status_edit --arg domain "${DOMAIN}" --arg reason "${REASON:-unknown}" \
+    --argjson time "$(date +%s)" \
+    '.skipped |= (map(select(.domain != $domain)) + [{domain: $domain, reason: $reason, time: $time}])'
+}
+
+# log_f, and remember the message as the reason a domain was skipped
+log_reason(){
+  ACME_SKIP_REASON="${1}"
+  log_f "${1}"
+}
+
+# Per-domain failures, read out of the output of whichever client ran.
+# Usage: acme_domain_errors <output file>
+# Prints one "domain<TAB>reason" line per domain the CA or the DNS provider
+# rejected. Neither client reports this in a machine readable form, so the
+# strings each of them prints are matched here.
+acme_domain_errors(){
+  local FILE="${1}"
+  [[ -f ${FILE} ]] || return 0
+  awk '
+    BEGIN { q = sprintf("%c", 39) }
+    function emit(domain, reason) {
+      sub(/^\*\./, "", domain)
+      gsub(/^[ \t]+|[ \t]+$/, "", reason)
+      gsub(/\t/, " ", reason)
+      if (domain == "" || reason == "" || (domain in seen)) return
+      seen[domain] = 1
+      print domain "\t" reason
+    }
+    # The domain that follows an _acme-challenge. label on this line
+    function challenge_domain(line) {
+      if (!match(line, /_acme-challenge\.[A-Za-z0-9._-]+/)) return ""
+      domain = substr(line, RSTART, RLENGTH)
+      sub(/^_acme-challenge\./, "", domain)
+      return domain
+    }
+    # acme.sh, one line per failed authorization:
+    #   [date] example.com:Verify error:DNS problem: NXDOMAIN looking up TXT ...
+    /:Verify error:/ {
+      line = $0
+      sub(/^\[[^]]*\][ \t]*/, "", line)
+      split(line, part, ":Verify error:")
+      if (part[1] != "" && part[1] !~ /[ \t]/) {
+        emit(part[1], part[2])
+        next
+      }
+    }
+    # acme.sh, the DNS provider refused the challenge record
+    /Error add txt for domain/ {
+      emit(challenge_domain($0), "The DNS provider could not add the _acme-challenge TXT record for this domain")
+      next
+    }
+    # acme.sh could not work out the zone of a domain at the provider
+    /domain token entry/ {
+      emit(challenge_domain($0), "The DNS provider does not hold the zone of this domain, so the challenge record cannot be written")
+      next
+    }
+    # acme-tiny raises: Challenge did not pass for example.com: {... detail ...}
+    /Challenge did not pass for/ {
+      line = $0
+      if (match(line, /Challenge did not pass for [A-Za-z0-9*._-]+/)) {
+        domain = substr(line, RSTART, RLENGTH)
+        sub(/^Challenge did not pass for[ \t]+/, "", domain)
+        detail = ""
+        if (match(line, "[" q "\"]detail[" q "\"]: *[" q "\"][^" q "\"]*")) {
+          detail = substr(line, RSTART, RLENGTH)
+          sub("^.*detail[" q "\"]: *[" q "\"]", "", detail)
+        }
+        emit(domain, detail != "" ? detail : "The CA did not accept the challenge")
+        next
+      }
+    }
+    # The CA names the rejected domain in the order error
+    /Cannot issue for/ {
+      line = $0
+      if (match(line, "Cannot issue for \\\\?[" q "\"][A-Za-z0-9*._-]+")) {
+        matched = substr(line, RSTART, RLENGTH)
+        domain = matched
+        sub("^Cannot issue for \\\\?[" q "\"]", "", domain)
+        detail = line
+        sub(/^.*Cannot issue for/, "Cannot issue for", detail)
+        sub(/","status.*$/, "", detail)
+        emit(domain, detail)
+        next
+      }
+    }
+  ' "${FILE}"
+}
+
+# What is wrong with a domain of a failed certificate that the client did not
+# name. Checks the things that break an ACME challenge, in the order they
+# break it, and prints the first problem found.
+acme_diagnose_domain(){
+  local DOMAIN="${1#\*.}"
+  local WILDCARD="${1}"
+  local PARENT CAAS TXT A_REC AAAA_REC
+  local CHALLENGE
+  CHALLENGE=$(domain_challenge_type "${1}" 2>/dev/null)
+
+  PARENT=$(echo "${DOMAIN}" | cut -d. -f2-)
+  CAAS=( $(dig CAA "${PARENT}" +short @unbound 2>/dev/null | sed -n 's/\d issue "\(.*\)"/\1/p') )
+  if [[ ! -z ${CAAS} ]] && [[ ! ${CAAS[@]} =~ "letsencrypt.org" ]]; then
+    echo "The CAA record of ${PARENT} does not allow Let's Encrypt to issue for this domain"
+    return 0
+  fi
+
+  if [[ ${CHALLENGE} == "dns" ]]; then
+    if ! dns_zone_managed "${DOMAIN}" 2>/dev/null; then
+      echo "${ACME_DNS_PROVIDER} does not manage the zone of this domain, so no _acme-challenge TXT record can be written for it"
+      return 0
+    fi
+    TXT=$(dig TXT "_acme-challenge.${DOMAIN}" +short @unbound 2>/dev/null)
+    if [[ -z ${TXT} ]]; then
+      echo "No _acme-challenge.${DOMAIN} TXT record is visible - the record was not written, or the zone is delegated elsewhere than the configured provider"
+    else
+      echo "A _acme-challenge.${DOMAIN} TXT record is visible (${TXT//$'\n'/ }) but the CA did not accept it - check for a stale record or a slow zone propagation"
+    fi
+    return 0
+  fi
+
+  if [[ ${WILDCARD} == \*.* ]]; then
+    echo "A wildcard can only be validated over DNS-01, which this domain is not using"
+    return 0
+  fi
+  A_REC=$(dig A "${DOMAIN}" +short @unbound 2>/dev/null | tail -n 1)
+  AAAA_REC=$(dig AAAA "${DOMAIN}" +short @unbound 2>/dev/null | tail -n 1)
+  if [[ -z ${A_REC} && -z ${AAAA_REC} ]]; then
+    echo "No A or AAAA record, so the CA cannot reach this host for the HTTP-01 challenge"
+    return 0
+  fi
+  if ! verify_challenge_path "${DOMAIN}" 4 > /dev/null 2>&1; then
+    echo "http://${DOMAIN}/.well-known/acme-challenge/ does not serve what this server writes there - check the DNS record (${A_REC:-${AAAA_REC}}) and any proxy in front of port 80"
+    return 0
+  fi
+  echo "The challenge path is reachable, so the failure is on the CA side - see the client output"
+}
+
+# Record the outcome of one obtain-certificate run.
+# Usage: acme_status_cert CERT_NAME RETURN "DOMAINS"
+# The child process leaves its output in /tmp/acme-output-CERT_NAME and the
+# challenge it picked per domain in /tmp/acme-challenge-CERT_NAME.
+acme_status_cert(){
+  local CERT_NAME="${1}"
+  local RETURN="${2}"
+  local DOMAINS="${3}"
+  local OUTPUT_FILE="/tmp/acme-output-${CERT_NAME}"
+  local CHALLENGE_FILE="/tmp/acme-challenge-${CERT_NAME}"
+  local SINCE_KEY="ACME_FAILING_SINCE_${CERT_NAME}"
+  local STATE FAILING_SINCE OUTPUT DETAIL DOMAIN_ERRORS DOMAINS_JSON
+
+  case "${RETURN}" in
+    0) STATE=created ;;
+    1) STATE=renewed ;;
+    2) STATE=unchanged ;;
+    *) STATE=failed ;;
+  esac
+
+  if [[ ${STATE} == "failed" ]]; then
+    ${REDIS_CMDLINE} SET "${SINCE_KEY}" "$(date +%s)" NX > /dev/null
+    FAILING_SINCE=$(${REDIS_CMDLINE} GET "${SINCE_KEY}")
+  else
+    ${REDIS_CMDLINE} DEL "${SINCE_KEY}" > /dev/null
+  fi
+
+  # A certificate that was not due never ran a client, so whatever output is
+  # left in /tmp belongs to an earlier run and says nothing about this one
+  if [[ ${STATE} != "unchanged" ]]; then
+    # The last 200 lines are enough to explain a failure and keep the record small
+    OUTPUT=$(grep -v '^[[:space:]]*$' "${OUTPUT_FILE}" 2>/dev/null | tail -n 200)
+    # acme-tiny prints the reason of the CA as 'detail': '...'
+    DETAIL=$(grep -o "'detail': '[^']*'" "${OUTPUT_FILE}" 2>/dev/null | head -n 1 | cut -d"'" -f4)
+    [[ -z ${DETAIL} ]] && DETAIL=$(grep -o '"detail": *"[^"]*"' "${OUTPUT_FILE}" 2>/dev/null | head -n 1 | cut -d'"' -f4)
+    DOMAIN_ERRORS=$(acme_domain_errors "${OUTPUT_FILE}")
+    # A failure the CA did not put in a detail field: the first domain that
+    # failed explains it better than the last line of the output
+    if [[ -z ${DETAIL} ]] && [[ ${STATE} == "failed" ]]; then
+      DETAIL=$(printf '%s\n' "${DOMAIN_ERRORS}" | awk -F'\t' 'NF > 1 { print $1 ": " $2; exit }')
+      [[ -z ${DETAIL} ]] && DETAIL=$(printf '%s\n' "${OUTPUT}" | tail -n 1)
+    fi
+  fi
+
+  # Build the per-domain rows: the challenge used, the error the client
+  # reported for it and, where it reported none, what is wrong with the domain
+  DOMAINS_JSON=$(
+    for DOMAIN in ${DOMAINS}; do
+      local CHALLENGE ERROR DIAGNOSIS
+      CHALLENGE=$(awk -F= -v d="${DOMAIN}" '$1 == d { print $2 }' "${CHALLENGE_FILE}" 2>/dev/null | tail -n 1)
+      ERROR=$(printf '%s\n' "${DOMAIN_ERRORS}" | awk -F'\t' -v d="${DOMAIN}" '$1 == d { print $2 }' | head -n 1)
+      DIAGNOSIS=
+      if [[ ${STATE} == "failed" ]] && [[ -z ${ERROR} ]]; then
+        DIAGNOSIS=$(acme_diagnose_domain "${DOMAIN}" 2>/dev/null)
+      fi
+      jq -n --arg domain "${DOMAIN}" --arg challenge "${CHALLENGE}" \
+        --arg error "${ERROR}" --arg diagnosis "${DIAGNOSIS}" \
+        '{domain: $domain, challenge: (if $challenge == "" then null else $challenge end),
+          error: (if $error == "" then null else $error end),
+          diagnosis: (if $diagnosis == "" then null else $diagnosis end)}'
+    done | jq -s '.'
+  )
+  [[ -z ${DOMAINS_JSON} ]] && DOMAINS_JSON='[]'
+
+  if [[ ${STATE} == "failed" ]]; then
+    log_f "Certificate ${CERT_NAME} failed; per-domain reasons recorded for the certificates page"
+    printf '%s\n' "${DOMAIN_ERRORS}" | while IFS=$'\t' read -r D R; do
+      [[ -n ${D} ]] && log_f "  ${D}: ${R}"
+    done
+  fi
+
+  acme_status_edit \
+    --arg name "${CERT_NAME}" \
+    --arg state "${STATE}" \
+    --arg error "${DETAIL}" \
+    --arg output "${OUTPUT}" \
+    --argjson return "${RETURN:-0}" \
+    --argjson time "$(date +%s)" \
+    --argjson failing_since "${FAILING_SINCE:-null}" \
+    --argjson domains "${DOMAINS_JSON}" \
+    '.certificates |= (map(select(.name != $name)) + [{name: $name, state: $state,
+      return: $return, time: $time, failing_since: $failing_since,
+      error: (if $error == "" then null else $error end),
+      output: (if $output == "" then null else $output end),
+      domains: $domains}])'
+}
+
+# Close the record of this loop and publish it for the certificates page
+acme_status_publish(){
+  acme_status_edit --argjson finished "$(date +%s)" --argjson errors "${1:-0}" \
+    '.finished = $finished | .errors = $errors'
+  ${REDIS_CMDLINE} SET ACME_STATUS "$(cat "${ACME_STATUS_FILE}" 2>/dev/null)" > /dev/null
+}
+
+# A renewal the admin asked for on the certificates page. The page sets the
+# key and restarts this container, which lands here on the next start.
+acme_check_force_renew(){
+  if [[ "$(${REDIS_CMDLINE} GET ACME_FORCE_RENEW)" == "1" ]]; then
+    log_f "A renewal of every certificate was requested from the certificates page"
+    touch "${ACME_BASE}/force_renew"
+    ${REDIS_CMDLINE} DEL ACME_FORCE_RENEW > /dev/null
+  fi
 }

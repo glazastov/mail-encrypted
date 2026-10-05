@@ -568,6 +568,28 @@ if (isset($_GET['query'])) {
             }
           break;
 
+          case "certificates":
+            // get/certificates/{all|status|missing|backups}
+            // get/certificates/log/<lines>
+            switch ($object) {
+              case "all":
+                process_get_return(certificates('get', 'all'), false);
+              break;
+              case "status":
+                process_get_return(certificates('get', 'status'));
+              break;
+              case "missing":
+                process_get_return(certificates('get', 'missing'), false);
+              break;
+              case "backups":
+                process_get_return(certificates('get', 'backups'), false);
+              break;
+              case "log":
+                process_get_return(certificates('get', 'log', array('lines' => $extra)), false);
+              break;
+            }
+          break;
+
           case "reports":
             // get/reports/{settings|domains}
             // get/reports/{dmarc|tlsrpt}/<days>/<domain>
@@ -2002,6 +2024,9 @@ if (isset($_GET['query'])) {
         break;
         case "reports-settings":
           process_edit_return(reports('edit', 'settings', $attr));
+        break;
+        case "certificates-renew":
+          process_edit_return(certificates('edit', 'renew', $attr));
         break;
         case "time_limited_alias":
           process_edit_return(mailbox('edit', 'time_limited_alias', array_merge(array('address' => $items), $attr)));

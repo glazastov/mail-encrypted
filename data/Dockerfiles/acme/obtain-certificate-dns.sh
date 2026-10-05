@@ -141,11 +141,16 @@ fi
 # acme.sh takes the challenge of a domain from the -w/--dns that follows it, so
 # a certificate may mix the DNS-01 challenge for the zones the provider manages
 # with the HTTP-01 challenge for all other domains
+# The certificates page reports the challenge each domain was validated with
+CHALLENGE_FILE=/tmp/acme-challenge-${CERT_DOMAIN}
+: > ${CHALLENGE_FILE}
 for domain in "${CERT_DOMAINS[@]}"; do
   ACME_CMD+=("-d" "${domain}")
   if [[ "$(domain_challenge_type "${domain}")" == "dns" ]]; then
+    echo "${domain}=dns" >> ${CHALLENGE_FILE}
     ACME_CMD+=("--dns" "${ACME_DNS_PROVIDER}")
   else
+    echo "${domain}=http" >> ${CHALLENGE_FILE}
     acme_prepare_webroot
     log_f "Validating ${domain} over HTTP-01 in ${ACME_WEBROOT}"
     ACME_CMD+=("-w" "${ACME_WEBROOT}")
@@ -164,6 +169,8 @@ ACME_RESPONSE=$("${ACME_CMD[@]}" 2>&1 | tee /dev/fd/5; exit ${PIPESTATUS[0]})
 SUCCESS="$?"
 ACME_RESPONSE_B64=$(echo "${ACME_RESPONSE}" | openssl enc -e -A -base64)
 log_f "${ACME_RESPONSE_B64}" redis_only b64
+# The certificates page shows the output of the last run, successful or not
+printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-output-${CERT_DOMAIN}
 
 case "$SUCCESS" in
   0)

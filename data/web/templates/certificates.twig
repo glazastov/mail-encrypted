@@ -1,0 +1,70 @@
+{% extends 'base.twig' %}
+
+{% block content %}
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2 fs-5">
+      <span>{{ lang.certificates.title }}</span>
+      <div class="d-flex flex-wrap gap-2 ms-auto fs-6">
+        <button class="btn btn-xs btn-secondary" id="certificates_refresh">{{ lang.admin.refresh }}</button>
+        <button class="btn btn-xs btn-primary" id="certificates_renew"><i class="bi bi-arrow-repeat"></i> {{ lang.certificates.renew_all }}</button>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div id="certificates_no_record" class="alert alert-warning d-none">{{ lang.certificates.no_record }}</div>
+      <div id="certificates_errors" class="alert alert-danger d-none"></div>
+      <div id="certificates_renew_pending" class="alert alert-info d-none">{{ lang.certificates.renew_pending }}</div>
+
+      <div class="row g-3 mb-3" id="certificates_tiles"></div>
+      <p class="text-muted small" id="certificates_config"></p>
+
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-certificates" type="button" role="tab">{{ lang.certificates.certificates }}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-not-issued" type="button" role="tab">{{ lang.certificates.not_issued }} <span class="badge bg-secondary d-none" id="not_issued_count"></span></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-archived" type="button" role="tab">{{ lang.certificates.archived }}</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-certificates-log" type="button" role="tab">{{ lang.certificates.log }}</button></li>
+      </ul>
+
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-certificates" role="tabpanel">
+          <p class="text-muted small">{{ lang.certificates.certificates_info }}</p>
+          <table id="certificates_table" class="table table-striped dt-responsive w-100"></table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-not-issued" role="tabpanel">
+          <p class="text-muted small">{{ lang.certificates.not_issued_info }}</p>
+          <table id="not_issued_table" class="table table-striped dt-responsive w-100"></table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-archived" role="tabpanel">
+          <p class="text-muted small">{{ lang.certificates.archived_info }}</p>
+          <table id="archived_table" class="table table-striped dt-responsive w-100"></table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-certificates-log" role="tabpanel">
+          <p class="text-muted small">{{ lang.certificates.log_info }}</p>
+          <table id="certificates_log_table" class="table table-striped dt-responsive w-100"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="certificateDetail" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="certificate_detail_title"></h3>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="certificate_detail_body"></div>
+      </div>
+    </div>
+  </div>
+
+<script type='text/javascript'>
+  var lang = {{ lang_certificates|raw }};
+  var lang_datatables = {{ lang_datatables|raw }};
+  var csrf_token = '{{ csrf_token }}';
+  var pagination_size = Math.trunc('{{ pagination_size }}');
+</script>
+{% endblock %}

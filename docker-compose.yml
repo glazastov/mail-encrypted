@@ -148,6 +148,7 @@ services:
         - ./data/conf/dovecot/global_sieve_after:/global_sieve/after:z
         - ./data/assets/templates:/tpls:z
         - ./data/conf/nginx/:/etc/nginx/conf.d/:z
+        - ./data/assets/ssl:/var/lib/acme/:ro,z
       dns:
         - ${IPV4_NETWORK:-172.22.1}.254
       environment:
