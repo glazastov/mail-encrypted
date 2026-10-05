@@ -133,13 +133,23 @@ TMP_FULLCHAIN=$(mktemp /tmp/acme-fullchain.XXXXXX)
 
 ACME_CMD=("${ACME_SH_BIN_PATH}" "--home" "${ACME_SH_WORK_HOME}" "--config-home" "${ACME_SH_WORK_HOME}" "--cert-home" "${ACME_SH_WORK_HOME}")
 ACME_CMD+=("${ACME_SH_SERVER_ARGS[@]}")
-ACME_CMD+=("--issue" "--dns" "${ACME_DNS_PROVIDER}" "--key-file" "${KEY}" "--cert-file" "${TMP_CERT}" "--fullchain-file" "${TMP_FULLCHAIN}" "--force")
+ACME_CMD+=("--issue" "--key-file" "${KEY}" "--cert-file" "${TMP_CERT}" "--fullchain-file" "${TMP_FULLCHAIN}" "--force")
 if [[ -n "${ACME_PROFILE}" ]]; then
   log_f "Requesting certificate profile '${ACME_PROFILE}'"
   ACME_CMD+=("--cert-profile" "${ACME_PROFILE}")
 fi
+# acme.sh takes the challenge of a domain from the -w/--dns that follows it, so
+# a certificate may mix the DNS-01 challenge for the zones the provider manages
+# with the HTTP-01 challenge for all other domains
 for domain in "${CERT_DOMAINS[@]}"; do
   ACME_CMD+=("-d" "${domain}")
+  if [[ "$(domain_challenge_type "${domain}")" == "dns" ]]; then
+    ACME_CMD+=("--dns" "${ACME_DNS_PROVIDER}")
+  else
+    acme_prepare_webroot
+    log_f "Validating ${domain} over HTTP-01 in ${ACME_WEBROOT}"
+    ACME_CMD+=("-w" "${ACME_WEBROOT}")
+  fi
 done
 
 log_f "Using command ${ACME_CMD[*]}"
@@ -166,7 +176,8 @@ case "$SUCCESS" in
       mv -f ${TMP_FULLCHAIN} ${CERT}
       rm -f ${TMP_CERT}
       echo -n ${CERT_DOMAINS[*]} > ${DOMAINS_FILE}
-      log_f "Certificate successfully obtained via DNS challenge"
+      rm -f /var/www/acme/* 2> /dev/null
+      log_f "Certificate successfully obtained via acme.sh"
       exit ${RETURN}
     else
       log_f "Certificate was requested, but key and certificate hashes do not match"
@@ -175,7 +186,7 @@ case "$SUCCESS" in
     fi
     ;;
   *)
-    log_f "Failed to obtain certificate ${CERT} for domains '${CERT_DOMAINS[*]}' via DNS challenge"
+    log_f "Failed to obtain certificate ${CERT} for domains '${CERT_DOMAINS[*]}' via acme.sh"
     # acme.sh quotes the error in the failure notification
     printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-error-${CERT_DOMAIN}
     redis-cli -h redis -a ${REDISPASS} --no-auth-warning SET ACME_FAIL_TIME "$(date +%s)"

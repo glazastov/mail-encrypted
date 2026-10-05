@@ -297,8 +297,11 @@ ADDITIONAL_SERVER_NAMES=
 # Skip running ACME (acme-mailcow, Let's Encrypt certs) - y/n
 SKIP_LETS_ENCRYPT=n
 
-# Enable DNS-01 challenge for ACME (acme-mailcow) - y/n
+# Enable DNS-01 challenge for ACME (acme-mailcow) - y/n/auto
 # This requires you to set ACME_DNS_PROVIDER and ACME_ACCOUNT_EMAIL below
+# With auto, every domain whose zone the DNS provider's API manages is validated
+# over DNS-01 and all remaining domains over HTTP-01. This needs a provider
+# whose API can be asked for its zones - if yours cannot, use y or n.
 ACME_DNS_CHALLENGE=n
 ACME_DNS_PROVIDER=dns_xxx
 ACME_ACCOUNT_EMAIL=me@example.com

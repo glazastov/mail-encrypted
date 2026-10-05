@@ -35,6 +35,7 @@ COPY functions.sh /srv/functions.sh
 COPY obtain-certificate.sh /srv/obtain-certificate.sh
 COPY obtain-certificate-dns.sh /srv/obtain-certificate-dns.sh
 COPY load-dns-config.sh /srv/load-dns-config.sh
+COPY dns-zone-check.sh /srv/dns-zone-check.sh
 COPY reload-configurations.sh /srv/reload-configurations.sh
 COPY expand6.sh /srv/expand6.sh
 
