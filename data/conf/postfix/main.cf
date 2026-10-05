@@ -203,3 +203,5 @@ postscreen_dnsbl_sites = wl.mailspike.net=127.0.0.[18;19;20]*-2
 myhostname = srv01.abdalamail.com
 
 mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 [fe80::]/10 172.22.1.0/24 [fd4d:6169:6c63:6f77::]/64 173.249.35.36/32 [2a02:c207:1:336:1::106]/128 169.58.2.249/32 [2a02:c207:1:336:2::106]/128
+
+mail_name = Estelaz

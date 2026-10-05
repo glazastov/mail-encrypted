@@ -306,8 +306,10 @@ adapt_new_options() {
             echo "SOGO_URL_ENCRYPTION_KEY=$(LC_ALL=C </dev/urandom tr -dc A-Za-z0-9 2>/dev/null | head -c 16)" >> mailcow.conf
             ;;
         ACME_DNS_CHALLENGE)
-            echo '# Enable DNS-01 challenge for ACME (acme-mailcow) - y/n' >> mailcow.conf
+            echo '# Enable DNS-01 challenge for ACME (acme-mailcow) - y/n/auto' >> mailcow.conf
             echo '# This requires you to set ACME_DNS_PROVIDER and ACME_ACCOUNT_EMAIL below' >> mailcow.conf
+            echo "# With auto, every domain whose zone the DNS provider's API manages is validated" >> mailcow.conf
+            echo '# over DNS-01 and all remaining domains over HTTP-01.' >> mailcow.conf
             echo 'ACME_DNS_CHALLENGE=n' >> mailcow.conf
             ;;
         ACME_DNS_PROVIDER)
