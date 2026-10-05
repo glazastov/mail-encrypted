@@ -11,8 +11,10 @@ log_f() {
   if [[ ${3} == "b64" ]]; then
     ${REDIS_CMDLINE} LPUSH ACME_LOG "{\"time\":\"$(date +%s)\",\"message\":\"base64,$(printf '%s' "${MAILCOW_HOSTNAME} - ${1}")\"}" > /dev/null
   else
+    # The dash has to come last: between '}' and '\r' tr reads it as a reverse
+    # range, aborts, and every log line reaches Redis empty
     ${REDIS_CMDLINE} LPUSH ACME_LOG "{\"time\":\"$(date +%s)\",\"message\":\"$(printf '%s' "${MAILCOW_HOSTNAME} - ${1}" | \
-      tr '%&;$"[]{}-\r\n' ' ')\"}" > /dev/null
+      tr '%&;$"[]{}\r\n-' ' ')\"}" > /dev/null
   fi
 }
 
