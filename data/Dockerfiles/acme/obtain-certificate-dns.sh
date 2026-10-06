@@ -33,11 +33,11 @@ if [[ -z "${ACME_DNS_PROVIDER}" ]]; then
   exit 6
 fi
 
-DOMAINS_FILE=${ACME_BASE}/${CERT_DOMAIN}/domains
-CERT=${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}cert.pem
-SHARED_KEY=${ACME_BASE}/acme/${PREFIX}key.pem  # must already exist
-KEY=${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}key.pem
-CSR=${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}acme.csr
+DOMAINS_FILE="${ACME_BASE}/${CERT_DOMAIN}/domains"
+CERT="${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}cert.pem"
+SHARED_KEY="${ACME_BASE}/acme/${PREFIX}key.pem"  # must already exist
+KEY="${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}key.pem"
+CSR="${ACME_BASE}/${CERT_DOMAIN}/${PREFIX}acme.csr"
 
 if [[ -z ${CERT_DOMAINS[*]} ]]; then
   log_f "Missing CERT_DOMAINS to obtain a certificate"
@@ -60,10 +60,10 @@ else
   ACME_SH_SERVER_ARGS=("--server" "letsencrypt")
 fi
 
-if [[ -f ${DOMAINS_FILE} && "$(cat ${DOMAINS_FILE})" ==  "${CERT_DOMAINS[*]}" ]]; then
+if [[ -f ${DOMAINS_FILE} && "$(cat "${DOMAINS_FILE}")" ==  "${CERT_DOMAINS[*]}" ]]; then
   if [[ ! -f ${CERT} || ! -f "${KEY}" || -f "${ACME_BASE}/force_renew" ]]; then
     log_f "Certificate ${CERT} doesn't exist yet or forced renewal - start obtaining"
-  elif ! openssl x509 -checkend ${ACME_RENEW_BEFORE} -noout -in ${CERT} > /dev/null; then
+  elif ! openssl x509 -checkend "${ACME_RENEW_BEFORE}" -noout -in "${CERT}" > /dev/null; then
     log_f "Certificate ${CERT} is due for renewal (< ${ACME_RENEW_DAYS} days) - start renewing"
   else
     log_f "Certificate ${CERT} validation done, neither changed nor due for renewal."
@@ -76,27 +76,27 @@ fi
 # Make backup
 if [[ -f ${CERT} ]]; then
   DATE=$(date +%Y-%m-%d_%H_%M_%S)
-  BACKUP_DIR=${ACME_BASE}/backups/${CERT_DOMAIN}/${PREFIX}${DATE}
+  BACKUP_DIR="${ACME_BASE}/backups/${CERT_DOMAIN}/${PREFIX}${DATE}"
   log_f "Creating backups in ${BACKUP_DIR} ..."
-  mkdir -p ${BACKUP_DIR}/
-  [[ -f ${DOMAINS_FILE} ]] && cp ${DOMAINS_FILE} ${BACKUP_DIR}/
-  [[ -f ${CERT} ]] && cp ${CERT} ${BACKUP_DIR}/
-  [[ -f ${KEY} ]] && cp ${KEY} ${BACKUP_DIR}/
-  [[ -f ${CSR} ]] && cp ${CSR} ${BACKUP_DIR}/
+  mkdir -p "${BACKUP_DIR}/"
+  [[ -f ${DOMAINS_FILE} ]] && cp "${DOMAINS_FILE}" "${BACKUP_DIR}/"
+  [[ -f ${CERT} ]] && cp "${CERT}" "${BACKUP_DIR}/"
+  [[ -f ${KEY} ]] && cp "${KEY}" "${BACKUP_DIR}/"
+  [[ -f ${CSR} ]] && cp "${CSR}" "${BACKUP_DIR}/"
 fi
 
-mkdir -p ${ACME_BASE}/${CERT_DOMAIN}
+mkdir -p "${ACME_BASE}/${CERT_DOMAIN}"
 if [[ ! -f ${KEY} ]]; then
   log_f "Copying shared private key for this certificate..."
-  cp ${SHARED_KEY} ${KEY}
-  chmod 600 ${KEY}
+  cp "${SHARED_KEY}" "${KEY}"
+  chmod 600 "${KEY}"
 fi
 
 # Generating CSR to keep layout parity with HTTP challenge flow
 printf "[SAN]\nsubjectAltName=" > /tmp/_SAN
 printf "DNS:%s," "${CERT_DOMAINS[@]}" >> /tmp/_SAN
 sed -i '$s/,$//' /tmp/_SAN
-openssl req -new -sha256 -key ${KEY} -subj "/" -reqexts SAN -config <(cat "$(openssl version -d | sed 's/.*\"\(.*\)\"/\1/g')/openssl.cnf" /tmp/_SAN) > ${CSR}
+openssl req -new -sha256 -key "${KEY}" -subj "/" -reqexts SAN -config <(cat "$(openssl version -d | sed 's/.*\"\(.*\)\"/\1/g')/openssl.cnf" /tmp/_SAN) > "${CSR}"
 
 log_f "Checking resolver..."
 until dig letsencrypt.org +time=3 +tries=1 @unbound > /dev/null; do
@@ -142,15 +142,15 @@ fi
 # a certificate may mix the DNS-01 challenge for the zones the provider manages
 # with the HTTP-01 challenge for all other domains
 # The certificates page reports the challenge each domain was validated with
-CHALLENGE_FILE=/tmp/acme-challenge-${CERT_DOMAIN}
-: > ${CHALLENGE_FILE}
+CHALLENGE_FILE="/tmp/acme-challenge-${CERT_DOMAIN}"
+: > "${CHALLENGE_FILE}"
 for domain in "${CERT_DOMAINS[@]}"; do
   ACME_CMD+=("-d" "${domain}")
   if [[ "$(domain_challenge_type "${domain}")" == "dns" ]]; then
-    echo "${domain}=dns" >> ${CHALLENGE_FILE}
+    echo "${domain}=dns" >> "${CHALLENGE_FILE}"
     ACME_CMD+=("--dns" "${ACME_DNS_PROVIDER}")
   else
-    echo "${domain}=http" >> ${CHALLENGE_FILE}
+    echo "${domain}=http" >> "${CHALLENGE_FILE}"
     acme_prepare_webroot
     log_f "Validating ${domain} over HTTP-01 in ${ACME_WEBROOT}"
     ACME_CMD+=("-w" "${ACME_WEBROOT}")
@@ -170,34 +170,34 @@ SUCCESS="$?"
 ACME_RESPONSE_B64=$(echo "${ACME_RESPONSE}" | openssl enc -e -A -base64)
 log_f "${ACME_RESPONSE_B64}" redis_only b64
 # The certificates page shows the output of the last run, successful or not
-printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-output-${CERT_DOMAIN}
+printf '%s\n' "${ACME_RESPONSE}" > "/tmp/acme-output-${CERT_DOMAIN}"
 
 case "$SUCCESS" in
   0)
     log_f "Deploying certificate ${CERT}..."
-    if verify_hash_match ${TMP_FULLCHAIN} ${KEY}; then
+    if verify_hash_match "${TMP_FULLCHAIN}" "${KEY}"; then
       RETURN=0
       if [[ -f ${CERT} ]]; then
         RETURN=1
       fi
-      mv -f ${TMP_FULLCHAIN} ${CERT}
-      rm -f ${TMP_CERT}
-      echo -n ${CERT_DOMAINS[*]} > ${DOMAINS_FILE}
+      mv -f "${TMP_FULLCHAIN}" "${CERT}"
+      rm -f "${TMP_CERT}"
+      echo -n ${CERT_DOMAINS[*]} > "${DOMAINS_FILE}"
       rm -f /var/www/acme/* 2> /dev/null
       log_f "Certificate successfully obtained via acme.sh"
       exit ${RETURN}
     else
       log_f "Certificate was requested, but key and certificate hashes do not match"
-      rm -f ${TMP_CERT} ${TMP_FULLCHAIN}
+      rm -f "${TMP_CERT}" "${TMP_FULLCHAIN}"
       exit 4
     fi
     ;;
   *)
     log_f "Failed to obtain certificate ${CERT} for domains '${CERT_DOMAINS[*]}' via acme.sh"
     # acme.sh quotes the error in the failure notification
-    printf '%s\n' "${ACME_RESPONSE}" > /tmp/acme-error-${CERT_DOMAIN}
+    printf '%s\n' "${ACME_RESPONSE}" > "/tmp/acme-error-${CERT_DOMAIN}"
     redis-cli -h redis -a ${REDISPASS} --no-auth-warning SET ACME_FAIL_TIME "$(date +%s)"
-    rm -f ${TMP_CERT} ${TMP_FULLCHAIN}
+    rm -f "${TMP_CERT}" "${TMP_FULLCHAIN}"
     exit 100${SUCCESS}
     ;;
 esac
