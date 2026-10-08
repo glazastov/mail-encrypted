@@ -67,6 +67,7 @@ adapt_new_options() {
   "ACME_RENEW_BEFORE"
   "ACME_CHECK_INTERVAL"
   "ACME_MAIL_CERTS"
+  "ACME_ENFORCE_CERT_MATCH"
   "ACME_NOTIFY_FAILURES"
   "PGP_STORAGE_DEBUG"
   "PGP_STORAGE_DEBUG_LOG"
@@ -354,6 +355,12 @@ adapt_new_options() {
             echo '# Obtain the mail server certificate (MAILCOW_HOSTNAME + ADDITIONAL_SAN) used by Postfix and Dovecot - y/n' >> mailcow.conf
             echo '# Switch off to manage that certificate yourself; AUTODISCOVER_SAN keeps covering the web subdomains.' >> mailcow.conf
             echo 'ACME_MAIL_CERTS=y' >> mailcow.conf
+            ;;
+        ACME_ENFORCE_CERT_MATCH)
+            echo '# Verify that Postfix and Dovecot serve the same certificate for every name, and' >> mailcow.conf
+            echo '# restart them until they do - y/n' >> mailcow.conf
+            echo '# Only switch off to stop the ACME container from restarting the two on its own.' >> mailcow.conf
+            echo 'ACME_ENFORCE_CERT_MATCH=y' >> mailcow.conf
             ;;
         ACME_NOTIFY_FAILURES)
             echo '# E-mail ACME_ACCOUNT_EMAIL when a certificate cannot be obtained - y/n' >> mailcow.conf

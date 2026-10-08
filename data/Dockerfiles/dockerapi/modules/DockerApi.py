@@ -286,7 +286,11 @@ class DockerApi:
       filters = {"name": kwargs['container_name']}
 
     for container in self.sync_docker_client.containers.list(filters=filters):
-      reload_return = container.exec_run(["/bin/bash", "-c", "/usr/sbin/postfix reload"])
+      # Postfix keeps a copy of every SNI certificate inside sni.map.db, which
+      # a plain reload does not rebuild. Without the generator the reload would
+      # leave Postfix on the certificates of the last container start while
+      # Dovecot already serves the renewed ones.
+      reload_return = container.exec_run(["/bin/bash", "-c", "/usr/local/sbin/generate-sni-map.sh && /usr/sbin/postfix reload"])
       return self.exec_run_handler('generic', reload_return)
   # api call: container_post - post_action: exec - cmd: reload - task: nginx
   def container_post__exec__reload__nginx(self, request_json, **kwargs):

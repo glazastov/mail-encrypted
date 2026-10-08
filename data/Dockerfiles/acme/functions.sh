@@ -81,6 +81,73 @@ verify_hash_match(){
   fi
 }
 
+# Resolve the certificate directory a name is served from, following the same
+# rules Postfix's sni.map and Dovecot's sni.conf do: the first directory whose
+# "domains" file lists the name, or lists the wildcard of its parent domain.
+# Usage: certificate_dir_for mail.example.com
+# Prints: the directory with a trailing slash; returns 1 when none matches
+certificate_dir_for(){
+  local NAME="${1}"
+  local WILDCARD="*.${1#*.}"
+  local CERT_DIR DOMAIN
+  local -a DOMAINS
+
+  for CERT_DIR in "${ACME_BASE}"/*/ ; do
+    [[ -f "${CERT_DIR}domains" ]] && [[ -f "${CERT_DIR}cert.pem" ]] && [[ -f "${CERT_DIR}key.pem" ]] || continue
+    IFS=" " read -r -a DOMAINS <<< "$(cat "${CERT_DIR}domains")"
+    for DOMAIN in "${DOMAINS[@]}"; do
+      if [[ ${DOMAIN} == "${NAME}" ]] || [[ ${DOMAIN} == "${WILDCARD}" ]]; then
+        printf '%s' "${CERT_DIR}"
+        return 0
+      fi
+    done
+  done
+
+  return 1
+}
+
+# Keep the default certificate in sync with the certificate that covers
+# MAILCOW_HOSTNAME. Postfix (smtpd_tls_cert_file) and Dovecot (ssl_cert) both
+# fall back to it for every name without an SNI entry, so once it stops being
+# refreshed it stays frozen until it expires - which is what left submission
+# answering with a certificate that had run out while IMAP was current.
+# Upstream only copies it inside the branch that issues the server
+# certificate; this runs on every loop regardless of that branch.
+# Usage: sync_default_certificate
+# Returns: 0 when the default certificate is in place, 1 when it is not
+sync_default_certificate(){
+  local SOURCE_DIR
+
+  if ! SOURCE_DIR="$(certificate_dir_for "${MAILCOW_HOSTNAME}")"; then
+    log_f "No certificate covers ${MAILCOW_HOSTNAME} - leaving the default certificate untouched"
+    return 1
+  fi
+
+  if ! verify_hash_match "${SOURCE_DIR}cert.pem" "${SOURCE_DIR}key.pem"; then
+    log_f "Refusing to copy ${SOURCE_DIR} over the default certificate"
+    return 1
+  fi
+
+  if cmp -s "${SOURCE_DIR}cert.pem" "${ACME_BASE}/cert.pem" \
+     && cmp -s "${SOURCE_DIR}key.pem" "${ACME_BASE}/key.pem"; then
+    return 0
+  fi
+
+  log_f "Updating the default certificate from ${SOURCE_DIR}"
+  # Stage both halves and move them into place: a reader catching us mid-copy
+  # would otherwise load a certificate that does not match the key
+  if ! cp "${SOURCE_DIR}cert.pem" "${ACME_BASE}/cert.pem.new" \
+     || ! cp "${SOURCE_DIR}key.pem" "${ACME_BASE}/key.pem.new" \
+     || ! mv "${ACME_BASE}/cert.pem.new" "${ACME_BASE}/cert.pem" \
+     || ! mv "${ACME_BASE}/key.pem.new" "${ACME_BASE}/key.pem"; then
+    log_f "Could not update the default certificate from ${SOURCE_DIR}"
+    rm -f "${ACME_BASE}/cert.pem.new" "${ACME_BASE}/key.pem.new"
+    return 1
+  fi
+
+  return 0
+}
+
 get_ipv4(){
   local IPV4=
   local IPV4_SRCS=
@@ -351,6 +418,24 @@ acme_send_mail(){
     log_f "Could not send notification to ${ACME_ACCOUNT_EMAIL} (curl exit code ${RC})"
   fi
   return ${RC}
+}
+
+# Warn that Postfix and Dovecot could not be brought onto the same
+# certificate. Reloading and restarting both already failed at this point, so
+# the only thing left is to tell someone before clients start seeing the
+# mismatch - or an expired certificate.
+# Usage: acme_notify_cert_mismatch
+acme_notify_cert_mismatch(){
+  acme_notify_enabled || return 0
+  acme_send_mail "[${MAILCOW_HOSTNAME}] Postfix and Dovecot serve different certificates" \
+"Postfix and Dovecot do not answer the same name with the same certificate on
+${MAILCOW_HOSTNAME}, and restarting both did not resolve it.
+
+Clients may be offered a certificate that does not match the name they asked
+for, or one that has already expired.
+
+Run /srv/verify-served-certificates.sh in acme-mailcow for the list of names
+that disagree."
 }
 
 # Report the outcome of one obtain-certificate run.

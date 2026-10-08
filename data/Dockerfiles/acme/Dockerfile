@@ -37,6 +37,7 @@ COPY obtain-certificate-dns.sh /srv/obtain-certificate-dns.sh
 COPY load-dns-config.sh /srv/load-dns-config.sh
 COPY dns-zone-check.sh /srv/dns-zone-check.sh
 COPY reload-configurations.sh /srv/reload-configurations.sh
+COPY verify-served-certificates.sh /srv/verify-served-certificates.sh
 COPY expand6.sh /srv/expand6.sh
 
 RUN chmod +x /srv/*.sh

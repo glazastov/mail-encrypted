@@ -164,19 +164,7 @@ rm -rf /var/vmail/mailcow.local/*
 [[ -f /tmp/quarantine_notify.pid ]] && rm /tmp/quarantine_notify.pid
 
 # create sni configuration
-echo "" > /etc/dovecot/sni.conf
-for cert_dir in /etc/ssl/mail/*/ ; do
-  if [[ ! -f ${cert_dir}domains ]] || [[ ! -f ${cert_dir}cert.pem ]] || [[ ! -f ${cert_dir}key.pem ]]; then
-    continue
-  fi
-  domains=($(cat ${cert_dir}domains))
-  for domain in ${domains[@]}; do
-    echo 'local_name '${domain}' {' >> /etc/dovecot/sni.conf;
-    echo '  ssl_cert = <'${cert_dir}'cert.pem' >> /etc/dovecot/sni.conf;
-    echo '  ssl_key = <'${cert_dir}'key.pem' >> /etc/dovecot/sni.conf;
-    echo '}' >> /etc/dovecot/sni.conf;
-  done
-done
+/usr/local/sbin/generate-sni-conf.sh
 
 # Create random master for SOGo sieve features
 RAND_USER=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 16 | head -n 1)

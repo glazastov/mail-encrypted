@@ -130,6 +130,7 @@ COPY rspamd-pipe-spam /usr/lib/dovecot/sieve/rspamd-pipe-spam
 COPY sa-rules.sh /usr/local/bin/sa-rules.sh
 COPY maildir_gc.sh /usr/local/bin/maildir_gc.sh
 COPY docker-entrypoint.sh /
+COPY generate-sni-conf.sh /usr/local/sbin/generate-sni-conf.sh
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY stop-supervisor.sh /usr/local/sbin/stop-supervisor.sh
 COPY quarantine_notify.py /usr/local/bin/quarantine_notify.py

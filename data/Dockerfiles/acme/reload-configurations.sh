@@ -25,6 +25,12 @@ reload_postfix(){
 }
 
 restart_container(){
+  if [[ -z "$*" ]]; then
+    # An empty id means the dockerapi lookup above came back empty, and the
+    # loop below would quietly restart nothing at all
+    echo "No container id to restart - dockerapi returned nothing for ${COMPOSE_PROJECT_NAME}" >&2
+    return 1
+  fi
   for container in $*; do
     echo "Restarting ${container}..."
     C_REST_OUT=$(curl -X POST --insecure https://dockerapi.${COMPOSE_PROJECT_NAME}_mailcow-network/containers/${container}/restart --silent | jq -r '.msg')
@@ -32,14 +38,16 @@ restart_container(){
   done
 }
 
+# Postfix and Dovecot are restarted rather than reloaded: a restart rebuilds
+# sni.map.db and re-reads every PEM file, which is the only thing that is
+# guaranteed to put both of them on the certificates currently on disk no
+# matter which image versions are running. The caller verifies the result.
 if [[ "${CERT_AMOUNT_CHANGED}" == "1" ]]; then
   restart_container ${NGINX}
   restart_container ${DOVECOT}
   restart_container ${POSTFIX}
 else
   reload_nginx
-  #reload_dovecot
   restart_container ${DOVECOT}
-  #reload_postfix
   restart_container ${POSTFIX}
 fi

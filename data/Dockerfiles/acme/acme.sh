@@ -85,6 +85,14 @@ else
   ACME_MAIL_CERTS=y
 fi
 
+# Restart Postfix and Dovecot until they serve the same certificate for every
+# name. Switching this off leaves the mismatch reported but unattended.
+if [[ "${ACME_ENFORCE_CERT_MATCH}" =~ ^([nN][oO]|[nN])+$ ]]; then
+  ACME_ENFORCE_CERT_MATCH=n
+else
+  ACME_ENFORCE_CERT_MATCH=y
+fi
+
 # E-mail ACME_ACCOUNT_EMAIL when a certificate cannot be obtained
 if [[ "${ACME_NOTIFY_FAILURES}" =~ ^([nN][oO]|[nN])+$ ]]; then
   ACME_NOTIFY_FAILURES=n
@@ -213,10 +221,6 @@ log_f "OK" no_date
 log_f "Initializing, please wait..."
 
 while true; do
-  POSTFIX_CERT_SERIAL="$(echo | openssl s_client -connect postfix:25 -starttls smtp 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-  DOVECOT_CERT_SERIAL="$(echo | openssl s_client -connect dovecot:143 -starttls imap 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-  POSTFIX_CERT_SERIAL_NEW="$(echo | openssl s_client -connect postfix:25 -starttls smtp 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-  DOVECOT_CERT_SERIAL_NEW="$(echo | openssl s_client -connect dovecot:143 -starttls imap 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
   # Re-using previous acme-mailcow account and domain keys
   if [[ ! -f ${ACME_BASE}/acme/key.pem ]]; then
     log_f "Generating missing domain private rsa key..."
@@ -533,37 +537,49 @@ while true; do
     done
   fi
 
-  # reload on new or changed certificates
-  if [[ "${CERT_CHANGED}" == "1" ]]; then
-    rm -f "${ACME_BASE}/force_renew" 2> /dev/null
-    RELOAD_LOOP_C=1
-    # The serial check waits for Postfix and Dovecot to serve a new server
-    # certificate, which never comes when ACME does not manage it
-    if [[ ${ACME_MAIL_CERTS} == "n" ]]; then
+  [[ "${CERT_CHANGED}" == "1" ]] && rm -f "${ACME_BASE}/force_renew" 2> /dev/null
+
+  if [[ ${ACME_MAIL_CERTS} == "n" ]]; then
+    # The mail certificate is managed outside of ACME, so there is no default
+    # certificate to keep in sync and nothing to hold the two services to
+    if [[ "${CERT_CHANGED}" == "1" ]]; then
       log_f "Reloading or restarting services..."
       CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
-    else
-      while [[ "${POSTFIX_CERT_SERIAL}" == "${POSTFIX_CERT_SERIAL_NEW}" ]] || [[ "${DOVECOT_CERT_SERIAL}" == "${DOVECOT_CERT_SERIAL_NEW}" ]] || [[ ${#POSTFIX_CERT_SERIAL_NEW} -ne 36 ]] || [[ ${#DOVECOT_CERT_SERIAL_NEW} -ne 36 ]]; do
-        log_f "Reloading or restarting services... (${RELOAD_LOOP_C})"
-        RELOAD_LOOP_C=$((RELOAD_LOOP_C + 1))
-        CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
-        log_f "Waiting for containers to settle..."
-        sleep 10
-        until nc -z dovecot 143; do
-          sleep 1
-        done
-        until nc -z postfix 25; do
-          sleep 1
-        done
-        POSTFIX_CERT_SERIAL_NEW="$(echo | openssl s_client -connect postfix:25 -starttls smtp 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-        DOVECOT_CERT_SERIAL_NEW="$(echo | openssl s_client -connect dovecot:143 -starttls imap 2>/dev/null | openssl x509 -inform pem -noout -serial | cut -d "=" -f 2)"
-        if [[ ${RELOAD_LOOP_C} -gt 3 ]]; then
-          log_f "Some services do return old end dates, something went wrong!"
-          ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
-          break;
-        fi
-      done
     fi
+  elif [[ ${ACME_ENFORCE_CERT_MATCH} == "n" ]]; then
+    if [[ "${CERT_CHANGED}" == "1" ]]; then
+      log_f "Reloading or restarting services..."
+      CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
+    fi
+    /srv/verify-served-certificates.sh || log_f "Not enforcing the match, ACME_ENFORCE_CERT_MATCH=n"
+  else
+    sync_default_certificate || CERT_ERRORS=1
+
+    # Checked on every loop, not only after a renewal: the two drift apart
+    # whenever one of them reloads without the other, and the old check could
+    # not see it at all - it compared each service against a second sample of
+    # itself, never Postfix against Dovecot.
+    RELOAD_LOOP_C=0
+    while ! /srv/verify-served-certificates.sh; do
+      RELOAD_LOOP_C=$((RELOAD_LOOP_C + 1))
+      if [[ ${RELOAD_LOOP_C} -gt 3 ]]; then
+        log_f "Postfix and Dovecot still disagree after ${RELOAD_LOOP_C} attempts, something went wrong!"
+        ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
+        acme_notify_cert_mismatch
+        CERT_ERRORS=1
+        break
+      fi
+      log_f "Reloading or restarting services... (${RELOAD_LOOP_C})"
+      CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
+      log_f "Waiting for containers to settle..."
+      sleep 10
+      until nc -z dovecot 143; do
+        sleep 1
+      done
+      until nc -z postfix 25; do
+        sleep 1
+      done
+    done
   fi
 
   acme_status_publish ${CERT_ERRORS}

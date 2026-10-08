@@ -285,6 +285,11 @@ AUTODISCOVER_SAN=y
 # Switch off to manage that certificate yourself; AUTODISCOVER_SAN keeps covering the web subdomains.
 ACME_MAIL_CERTS=y
 
+# Verify that Postfix and Dovecot serve the same certificate for every name, and
+# restart them until they do - y/n
+# Only switch off to stop the ACME container from restarting the two on its own.
+ACME_ENFORCE_CERT_MATCH=y
+
 # Additional server names for mailcow UI
 #
 # Specify alternative addresses for the mailcow UI to respond to
