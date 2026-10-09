@@ -27,11 +27,23 @@ if [[ ! "${SKIP_LETS_ENCRYPT}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
     fi
     IFS=" " read -r -a domains <<< "$(cat "${cert_dir}domains")"
     for domain in "${domains[@]}"; do
-      # postmap keeps the first entry for a name and drops the rest; Dovecot
+      # Postfix looks the SNI name up verbatim and then retries with its
+      # ancestor domains prefixed by a dot. It never matches a "*." key, so a
+      # wildcard certificate written the way it is stored in "domains" is
+      # simply absent from the map and every name it covers gets answered
+      # from the default chain instead. Dovecot's local_name does match
+      # "*.example.com" - that asymmetry is how submission served the default
+      # certificate while IMAP served the wildcard one for the same name.
+      if [[ ${domain} == \*.* ]]; then
+        key=".${domain#\*.}"
+      else
+        key="${domain}"
+      fi
+      # postmap keeps the first entry for a key and drops the rest; Dovecot
       # resolves duplicates the same way, so both land on the same directory
-      [[ -n ${SEEN[${domain}]:-} ]] && continue
-      SEEN[${domain}]=1
-      printf '%s %skey.pem %scert.pem\n' "${domain}" "${cert_dir}" "${cert_dir}" >> "${SNI_MAP}"
+      [[ -n ${SEEN[${key}]:-} ]] && continue
+      SEEN[${key}]=1
+      printf '%s %skey.pem %scert.pem\n' "${key}" "${cert_dir}" "${cert_dir}" >> "${SNI_MAP}"
     done
   done
 fi

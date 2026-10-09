@@ -11,7 +11,13 @@
 # served a fresh one.
 #
 # Prints one line per name and exits non-zero as soon as anything disagrees,
-# which is what tells the caller to reload or restart the two services.
+# which is what tells the caller to repair the two services.
+#
+# The certificate on disk is the authority, never the one already being
+# served: every name is held to the PEM file it is supposed to come from, so
+# the service that is wrong can be named instead of restarting both and
+# hoping. The names and the services at fault are written to ${VERIFY_REPORT}
+# as "name<TAB>postfix|dovecot|both" lines for the caller to act on.
 
 set -o pipefail
 
@@ -24,7 +30,16 @@ DOVECOT_PROBE=${DOVECOT_PROBE:-dovecot:143}
 # real name, since SNI only has to be sent, not resolved
 WILDCARD_LABEL=${WILDCARD_LABEL:-acme-sni-probe}
 
+VERIFY_REPORT=${VERIFY_REPORT:-/tmp/acme-cert-mismatch}
+
 MISMATCHES=0
+: > "${VERIFY_REPORT}"
+
+# Usage: record_mismatch label postfix|dovecot|both
+record_mismatch(){
+  MISMATCHES=$((MISMATCHES + 1))
+  printf '%s\t%s\n' "${1}" "${2}" >> "${VERIFY_REPORT}"
+}
 
 fingerprint_of_file(){
   [[ -n ${1} ]] || return 0
@@ -46,9 +61,10 @@ fingerprint_served(){
 
 # Usage: compare_name [expected_certificate] [sni_name]
 # An empty expected certificate only asserts that the two services agree with
-# each other, which is all a wildcard entry can be held to: whether Postfix
-# resolves "*.example.com" through its map or falls back to the default
-# certificate is its own business, as long as Dovecot ends up on the same one.
+# each other, which is all that can be asked of a name no certificate
+# directory claims. A wildcard entry is no longer excused: Postfix resolves
+# ".example.com" through its map just as Dovecot resolves "*.example.com"
+# through local_name, so both have to land on that certificate.
 compare_name(){
   local EXPECTED_FILE="${1}"
   local NAME="${2}"
@@ -61,19 +77,37 @@ compare_name(){
 
   if [[ -z ${POSTFIX_FP} ]] || [[ -z ${DOVECOT_FP} ]]; then
     log_f "${LABEL}: could not read the served certificate (Postfix '${POSTFIX_FP:-none}', Dovecot '${DOVECOT_FP:-none}')"
-    MISMATCHES=$((MISMATCHES + 1))
+    if [[ -z ${POSTFIX_FP} ]] && [[ -z ${DOVECOT_FP} ]]; then
+      record_mismatch "${LABEL}" both
+    elif [[ -z ${POSTFIX_FP} ]]; then
+      record_mismatch "${LABEL}" postfix
+    else
+      record_mismatch "${LABEL}" dovecot
+    fi
     return 1
+  fi
+
+  # With the expected certificate in hand the offender is known by name, so
+  # only that service has to be put back on it
+  if [[ -n ${EXPECTED} ]]; then
+    local -a WRONG=()
+    [[ ${POSTFIX_FP} != "${EXPECTED}" ]] && WRONG+=(postfix)
+    [[ ${DOVECOT_FP} != "${EXPECTED}" ]] && WRONG+=(dovecot)
+    if [[ ${#WRONG[@]} -gt 0 ]]; then
+      log_f "${LABEL}: ${EXPECTED_FILE} holds ${EXPECTED}, but Postfix serves ${POSTFIX_FP} and Dovecot serves ${DOVECOT_FP}"
+      if [[ ${#WRONG[@]} -eq 2 ]]; then
+        record_mismatch "${LABEL}" both
+      else
+        record_mismatch "${LABEL}" "${WRONG[0]}"
+      fi
+      return 1
+    fi
+    return 0
   fi
 
   if [[ ${POSTFIX_FP} != "${DOVECOT_FP}" ]]; then
     log_f "${LABEL}: Postfix and Dovecot serve different certificates (${POSTFIX_FP} vs ${DOVECOT_FP})"
-    MISMATCHES=$((MISMATCHES + 1))
-    return 1
-  fi
-
-  if [[ -n ${EXPECTED} ]] && [[ ${POSTFIX_FP} != "${EXPECTED}" ]]; then
-    log_f "${LABEL}: both serve ${POSTFIX_FP}, but ${EXPECTED_FILE} holds ${EXPECTED}"
-    MISMATCHES=$((MISMATCHES + 1))
+    record_mismatch "${LABEL}" both
     return 1
   fi
 
@@ -85,7 +119,8 @@ compare_name(){
 DEFAULT_SOURCE="$(certificate_dir_for "${MAILCOW_HOSTNAME}")"
 if [[ -n ${DEFAULT_SOURCE} ]] && ! cmp -s "${DEFAULT_SOURCE}cert.pem" "${ACME_BASE}/cert.pem"; then
   log_f "<default>: ${ACME_BASE}/cert.pem is not the certificate in ${DEFAULT_SOURCE}"
-  MISMATCHES=$((MISMATCHES + 1))
+  # Both services read the default chain, so both are wrong until it is synced
+  record_mismatch "<default-source>" both
 fi
 
 compare_name "${ACME_BASE}/cert.pem"
@@ -97,11 +132,10 @@ for CERT_DIR in "${ACME_BASE}"/*/ ; do
   for DOMAIN in "${CERT_DOMAINS[@]}"; do
     if [[ ${DOMAIN} == \*.* ]]; then
       PROBE_NAME="${WILDCARD_LABEL}.${DOMAIN#\*.}"
-      EXPECTED_FILE=""
     else
       PROBE_NAME="${DOMAIN}"
-      EXPECTED_FILE="${CERT_DIR}cert.pem"
     fi
+    EXPECTED_FILE="${CERT_DIR}cert.pem"
     [[ -n ${CHECKED[${PROBE_NAME}]:-} ]] && continue
     CHECKED[${PROBE_NAME}]=1
     compare_name "${EXPECTED_FILE}" "${PROBE_NAME}"

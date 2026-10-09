@@ -559,18 +559,53 @@ while true; do
     # whenever one of them reloads without the other, and the old check could
     # not see it at all - it compared each service against a second sample of
     # itself, never Postfix against Dovecot.
+    export VERIFY_REPORT=/tmp/acme-cert-mismatch
     RELOAD_LOOP_C=0
     while ! /srv/verify-served-certificates.sh; do
       RELOAD_LOOP_C=$((RELOAD_LOOP_C + 1))
       if [[ ${RELOAD_LOOP_C} -gt 3 ]]; then
         log_f "Postfix and Dovecot still disagree after ${RELOAD_LOOP_C} attempts, something went wrong!"
         ${REDIS_CMDLINE} SET ACME_FAIL_TIME "$(date +%s)"
-        acme_notify_cert_mismatch
+        acme_notify_cert_mismatch "${VERIFY_REPORT}"
         CERT_ERRORS=1
         break
       fi
-      log_f "Reloading or restarting services... (${RELOAD_LOOP_C})"
-      CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} /srv/reload-configurations.sh
+
+      # The certificate on disk is what both services are brought onto, so a
+      # default certificate that drifted is re-synced before anything is
+      # reloaded - otherwise the reload would only reinstate the wrong one
+      sync_default_certificate || true
+
+      # Repair the service the verifier blamed, not both: it names which one
+      # answers a name with a certificate other than the one on disk, and
+      # mailcow has no reason to drop every SMTP and IMAP connection because
+      # one of the two went stale.
+      REPAIR_TARGETS=""
+      awk -F'\t' '$2 == "postfix" || $2 == "both" { found = 1 } END { exit !found }' "${VERIFY_REPORT}" \
+        && REPAIR_TARGETS="${REPAIR_TARGETS} postfix"
+      awk -F'\t' '$2 == "dovecot" || $2 == "both" { found = 1 } END { exit !found }' "${VERIFY_REPORT}" \
+        && REPAIR_TARGETS="${REPAIR_TARGETS} dovecot"
+
+      case "${RELOAD_LOOP_C}" in
+        1) # Cheapest fix that works: both reload tasks regenerate sni.map.db
+           # and sni.conf from the PEM files before reloading
+           REPAIR_LEVEL=1 ;;
+        2) # A reload did not take, restart the blamed containers
+           REPAIR_LEVEL=2 ;;
+        *) # Nothing specific left to try: restart the whole TLS front
+           REPAIR_LEVEL=2
+           REPAIR_TARGETS="nginx dovecot postfix" ;;
+      esac
+
+      # An empty blame list can only come from the default certificate being
+      # out of sync, which every service reads
+      [[ -z ${REPAIR_TARGETS// /} ]] && REPAIR_TARGETS="nginx dovecot postfix"
+
+      log_f "Repairing${REPAIR_TARGETS} at level ${REPAIR_LEVEL}... (${RELOAD_LOOP_C})"
+      CERT_AMOUNT_CHANGED=${CERT_AMOUNT_CHANGED} \
+        REPAIR_TARGETS="${REPAIR_TARGETS}" \
+        REPAIR_LEVEL=${REPAIR_LEVEL} \
+        /srv/reload-configurations.sh
       log_f "Waiting for containers to settle..."
       sleep 10
       until nc -z dovecot 143; do

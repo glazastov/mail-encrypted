@@ -276,7 +276,12 @@ class DockerApi:
       filters = {"name": kwargs['container_name']}
 
     for container in self.sync_docker_client.containers.list(filters=filters):
-      reload_return = container.exec_run(["/bin/bash", "-c", "/usr/sbin/dovecot reload"])
+      # Mirror of the Postfix reload below: a name that only appeared in
+      # /etc/ssl/mail after the container started has no local_name block yet,
+      # and "dovecot reload" alone would re-read a sni.conf that never
+      # mentions it. Regenerating first keeps both services reading the same
+      # set of certificate directories.
+      reload_return = container.exec_run(["/bin/bash", "-c", "/usr/local/sbin/generate-sni-conf.sh && /usr/sbin/dovecot reload"])
       return self.exec_run_handler('generic', reload_return)
   # api call: container_post - post_action: exec - cmd: reload - task: postfix
   def container_post__exec__reload__postfix(self, request_json, **kwargs):

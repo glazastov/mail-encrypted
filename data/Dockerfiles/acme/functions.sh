@@ -420,22 +420,35 @@ acme_send_mail(){
   return ${RC}
 }
 
-# Warn that Postfix and Dovecot could not be brought onto the same
-# certificate. Reloading and restarting both already failed at this point, so
-# the only thing left is to tell someone before clients start seeing the
-# mismatch - or an expired certificate.
-# Usage: acme_notify_cert_mismatch
+# Warn that a service could not be brought onto the certificate on disk.
+# This is the end of the repair ladder, not a substitute for it: the default
+# certificate was re-synced, the SNI data regenerated, the blamed service
+# reloaded and then restarted, and finally the whole TLS front restarted. Only
+# once all of that left a name on the wrong certificate is anyone told.
+# Usage: acme_notify_cert_mismatch [report_file]
 acme_notify_cert_mismatch(){
+  local REPORT="${1:-${VERIFY_REPORT:-/tmp/acme-cert-mismatch}}"
+  local NAMES="(the report is unavailable)"
   acme_notify_enabled || return 0
-  acme_send_mail "[${MAILCOW_HOSTNAME}] Postfix and Dovecot serve different certificates" \
-"Postfix and Dovecot do not answer the same name with the same certificate on
-${MAILCOW_HOSTNAME}, and restarting both did not resolve it.
+  if [[ -s ${REPORT} ]]; then
+    NAMES="$(awk -F'\t' '{ printf "  %s - wrong on: %s\n", $1, $2 }' "${REPORT}")"
+  fi
+  acme_send_mail "[${MAILCOW_HOSTNAME}] A service still serves the wrong certificate" \
+"On ${MAILCOW_HOSTNAME} the certificate served for a name is not the one on
+disk, and the automatic repair could not correct it.
+
+Already attempted, in this order: re-syncing the default certificate,
+regenerating sni.map.db and sni.conf and reloading the service at fault,
+restarting that container, and restarting nginx, Dovecot and Postfix.
+
+Names still wrong:
+${NAMES}
 
 Clients may be offered a certificate that does not match the name they asked
 for, or one that has already expired.
 
-Run /srv/verify-served-certificates.sh in acme-mailcow for the list of names
-that disagree."
+Run /srv/verify-served-certificates.sh in acme-mailcow to see the current
+state."
 }
 
 # Report the outcome of one obtain-certificate run.
