@@ -81,25 +81,47 @@ verify_hash_match(){
   fi
 }
 
+# Whether a certificate is still valid right now.
+#
+# An expired certificate is worse than no entry at all: every client rejects
+# it outright, while a name with no entry of its own falls through to a
+# wildcard certificate that is still valid, or to the default chain. A
+# directory left behind by a configuration change keeps its "domains" file, so
+# nothing else stops it from claiming names it was once issued for - which is
+# how submission kept answering "imap.example.com" from a certificate that had
+# run out while a current wildcard sat in the next directory.
+# Usage: certificate_is_current /path/to/cert.pem
+certificate_is_current(){
+  openssl x509 -checkend 0 -noout -in "${1}" > /dev/null 2>&1
+}
+
 # Resolve the certificate directory a name is served from, following the same
-# rules Postfix's sni.map and Dovecot's sni.conf do: the first directory whose
-# "domains" file lists the name, or lists the wildcard of its parent domain.
+# rules Postfix's sni.map and Dovecot's sni.conf do: a directory whose
+# "domains" file lists the name verbatim wins over one that only covers it
+# through the wildcard of its parent domain, and an expired certificate never
+# wins at all.
 # Usage: certificate_dir_for mail.example.com
 # Prints: the directory with a trailing slash; returns 1 when none matches
 certificate_dir_for(){
   local NAME="${1}"
   local WILDCARD="*.${1#*.}"
-  local CERT_DIR DOMAIN
+  local MATCH CERT_DIR DOMAIN
   local -a DOMAINS
 
-  for CERT_DIR in "${ACME_BASE}"/*/ ; do
-    [[ -f "${CERT_DIR}domains" ]] && [[ -f "${CERT_DIR}cert.pem" ]] && [[ -f "${CERT_DIR}key.pem" ]] || continue
-    IFS=" " read -r -a DOMAINS <<< "$(cat "${CERT_DIR}domains")"
-    for DOMAIN in "${DOMAINS[@]}"; do
-      if [[ ${DOMAIN} == "${NAME}" ]] || [[ ${DOMAIN} == "${WILDCARD}" ]]; then
-        printf '%s' "${CERT_DIR}"
-        return 0
-      fi
+  # Exact names first, then wildcards: both services prefer the specific
+  # entry, so resolving in glob order would blame them for a disagreement
+  # they do not have
+  for MATCH in "${NAME}" "${WILDCARD}"; do
+    for CERT_DIR in "${ACME_BASE}"/*/ ; do
+      [[ -f "${CERT_DIR}domains" ]] && [[ -f "${CERT_DIR}cert.pem" ]] && [[ -f "${CERT_DIR}key.pem" ]] || continue
+      certificate_is_current "${CERT_DIR}cert.pem" || continue
+      IFS=" " read -r -a DOMAINS <<< "$(cat "${CERT_DIR}domains")"
+      for DOMAIN in "${DOMAINS[@]}"; do
+        if [[ ${DOMAIN} == "${MATCH}" ]]; then
+          printf '%s' "${CERT_DIR}"
+          return 0
+        fi
+      done
     done
   done
 

@@ -17,12 +17,29 @@ set -o pipefail
 SSL_DIR=${SSL_DIR:-/etc/ssl/mail}
 SNI_MAP=${SNI_MAP:-/opt/postfix/conf/sni.map}
 
+# An expired certificate is worse than no entry at all: every client rejects
+# it, while a name with no entry of its own falls through to a wildcard
+# certificate that is still valid, or to the default chain. A directory left
+# behind by an ADDITIONAL_SAN change keeps its "domains" file and goes on
+# claiming names it was once issued for - and because an exact name beats a
+# wildcard, it wins them back from the certificate that is actually current.
+# If openssl is unavailable the entry is kept: a map built without it would be
+# worse than a stale one.
+certificate_is_current(){
+  command -v openssl > /dev/null 2>&1 || return 0
+  openssl x509 -checkend 0 -noout -in "${1}" > /dev/null 2>&1
+}
+
 declare -A SEEN=()
 : > "${SNI_MAP}"
 
 if [[ ! "${SKIP_LETS_ENCRYPT}" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
   for cert_dir in "${SSL_DIR}"/*/ ; do
     if [[ ! -f "${cert_dir}domains" ]] || [[ ! -f "${cert_dir}cert.pem" ]] || [[ ! -f "${cert_dir}key.pem" ]]; then
+      continue
+    fi
+    if ! certificate_is_current "${cert_dir}cert.pem"; then
+      echo "Skipping ${cert_dir}: its certificate has expired" >&2
       continue
     fi
     IFS=" " read -r -a domains <<< "$(cat "${cert_dir}domains")"

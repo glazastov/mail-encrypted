@@ -128,6 +128,17 @@ compare_name "${ACME_BASE}/cert.pem"
 declare -A CHECKED=()
 for CERT_DIR in "${ACME_BASE}"/*/ ; do
   [[ -f "${CERT_DIR}domains" ]] && [[ -f "${CERT_DIR}cert.pem" ]] && [[ -f "${CERT_DIR}key.pem" ]] || continue
+
+  # A directory whose certificate has expired claims nothing. Holding its
+  # names to it would demand that both services answer with a certificate
+  # every client rejects, and would blame the one that correctly fell through
+  # to a current wildcard. Orphans from an ADDITIONAL_SAN change sit here
+  # until acme.sh archives them, so this is the normal state, not an anomaly.
+  if ! certificate_is_current "${CERT_DIR}cert.pem"; then
+    log_f "Ignoring ${CERT_DIR}: expired on $(openssl x509 -enddate -noout -in "${CERT_DIR}cert.pem" 2>/dev/null | cut -d= -f2) - its names are served from whatever still covers them"
+    continue
+  fi
+
   IFS=" " read -r -a CERT_DOMAINS <<< "$(cat "${CERT_DIR}domains")"
   for DOMAIN in "${CERT_DOMAINS[@]}"; do
     if [[ ${DOMAIN} == \*.* ]]; then
@@ -135,10 +146,17 @@ for CERT_DIR in "${ACME_BASE}"/*/ ; do
     else
       PROBE_NAME="${DOMAIN}"
     fi
-    EXPECTED_FILE="${CERT_DIR}cert.pem"
     [[ -n ${CHECKED[${PROBE_NAME}]:-} ]] && continue
     CHECKED[${PROBE_NAME}]=1
-    compare_name "${EXPECTED_FILE}" "${PROBE_NAME}"
+
+    # Resolve the name the way the two services do rather than assuming this
+    # directory wins it: another one may list it verbatim while this one only
+    # covers it through a wildcard
+    if ! EXPECTED_DIR="$(certificate_dir_for "${PROBE_NAME}")"; then
+      log_f "${PROBE_NAME}: no current certificate covers this name, skipping"
+      continue
+    fi
+    compare_name "${EXPECTED_DIR}cert.pem" "${PROBE_NAME}"
   done
 done
 
