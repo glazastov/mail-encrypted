@@ -279,6 +279,12 @@ services:
       volumes:
         - ./data/hooks/dovecot:/hooks:Z
         - ./data/conf/dovecot:/etc/dovecot:z
+        # O script que avisa a plataforma de que chegou e-mail, para ela disparar
+        # o push cifrado. Vai para `/usr/lib/dovecot/sieve` porque é lá que o
+        # `sieve_pipe_bin_dir` manda o Sieve procurar binários de `pipe` — e esse
+        # caminho não pode ser trocado para a pasta montada sem quebrar o
+        # `rspamd-pipe-ham`/`-spam`, que o mailcow põe no mesmo diretório.
+        - ./data/conf/dovecot/sieve-pipe-bin/estelaz-avisa-push:/usr/lib/dovecot/sieve/estelaz-avisa-push:ro,z
         - ./data/assets/ssl:/etc/ssl/mail/:ro,z
         - ./data/conf/sogo/:/etc/sogo/:z
         - ./data/conf/phpfpm/sogo-sso/:/etc/phpfpm/:z
@@ -316,6 +322,14 @@ services:
         - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-mailcow-dockerized}
         - PGP_STORAGE_DEBUG=${PGP_STORAGE_DEBUG:-1}
         - PGP_STORAGE_DEBUG_LOG=${PGP_STORAGE_DEBUG_LOG:-/var/log/mailcow-pgp-storage-debug.log}
+        # O aviso de push. `ESTELAZ_PUSH_URL` é o hostname público da plataforma:
+        # ela roda noutra máquina, e a chamada atravessa a internet por HTTPS. Do
+        # outro lado, só IPs conhecidos deste servidor são aceitos, e com token.
+        # Vazias, o gatilho sai calado e a entrega no app continua pela conexão
+        # IMAP aberta — que é o padrão do app de todo jeito.
+        - ESTELAZ_PUSH_URL=${ESTELAZ_PUSH_URL:-}
+        - ESTELAZ_PUSH_TOKEN=${ESTELAZ_PUSH_TOKEN:-}
+        - ESTELAZ_PUSH_TIMEOUT=${ESTELAZ_PUSH_TIMEOUT:-2}
       ports:
         - "${DOVEADM_PORT:-127.0.0.1:19991}:12345"
         - "${IMAP_PORT:-143}:143"
