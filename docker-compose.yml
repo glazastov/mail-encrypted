@@ -279,12 +279,6 @@ services:
       volumes:
         - ./data/hooks/dovecot:/hooks:Z
         - ./data/conf/dovecot:/etc/dovecot:z
-        # O script que avisa a plataforma de que chegou e-mail, para ela disparar
-        # o push cifrado. Vai para `/usr/lib/dovecot/sieve` porque é lá que o
-        # `sieve_pipe_bin_dir` manda o Sieve procurar binários de `pipe` — e esse
-        # caminho não pode ser trocado para a pasta montada sem quebrar o
-        # `rspamd-pipe-ham`/`-spam`, que o mailcow põe no mesmo diretório.
-        - ./data/conf/dovecot/sieve-pipe-bin/estelaz-avisa-push:/usr/lib/dovecot/sieve/estelaz-avisa-push:ro,z
         - ./data/assets/ssl:/etc/ssl/mail/:ro,z
         - ./data/conf/sogo/:/etc/sogo/:z
         - ./data/conf/phpfpm/sogo-sso/:/etc/phpfpm/:z
