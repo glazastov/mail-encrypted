@@ -244,6 +244,11 @@ def confere_fiacao():
             True,
         )
         check(
+            "fiação: ramo {} carrega mail_lua".format(i),
+            "mail_lua" in linha,
+            True,
+        )
+        check(
             "fiação: ramo {} mantém o notify, exigido pelo push".format(i),
             "notify" in linha,
             True,
