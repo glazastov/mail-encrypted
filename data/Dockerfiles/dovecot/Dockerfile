@@ -26,6 +26,7 @@ RUN addgroup -g 5000 vmail \
   ca-certificates \
   curl \
   coreutils \
+  inotify-tools \
   jq \
   lua \
   lua-cjson \
@@ -138,6 +139,8 @@ COPY quota_notify.py /usr/local/bin/quota_notify.py
 COPY report_ingest.py /usr/local/bin/report_ingest.py
 COPY repl_health.sh /usr/local/bin/repl_health.sh
 COPY optimize-fts.sh /usr/local/bin/optimize-fts.sh
+COPY push-worker.py /usr/local/bin/push-worker.py
+RUN chmod 755 /usr/local/bin/push-worker.py
 
 # The sq CLI is not stable across releases - --recipient-file became --for-file
 # between 0.40 and 1.x - so fail the build rather than silently fall back to
